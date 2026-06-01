@@ -65,6 +65,7 @@ public class CourierMod implements ModInitializer {
     private static final String PARA_OBJECTIVE = "para";
     private final MinecraftServer[] serverRef = new MinecraftServer[1];
 
+    private final List<String> activityLog = new ArrayList<>();
 
     public static class LocationData {
         public String name;
@@ -86,10 +87,29 @@ public class CourierMod implements ModInitializer {
         public LocationData musteriLoc;
     }
 
+    public static class MissionPair {
+        public LocationData dagitim;
+        public LocationData musteri;
+        public MissionPair(LocationData dagitim, LocationData musteri) {
+            this.dagitim = dagitim;
+            this.musteri = musteri;
+        }
+    }
+
+    public void logActivity(String message) {
+        String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String logEntry = "[" + timestamp + "] " + message;
+        synchronized (activityLog) {
+            activityLog.add(logEntry);
+        }
+        System.out.println("[CourierMod-Log] " + logEntry);
+    }
+
     @Override
     public void onInitialize() {
         instance = this;
         loadData();
+        logActivity("Kurye Modu yuklendi. Sunucu baslatiliyor...");
         CommandRegistrationCallback.EVENT.register(this::registerCommands);
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
@@ -228,6 +248,9 @@ public class CourierMod implements ModInitializer {
             .executes(this::helpCommand)
             .then(CommandManager.literal("al").executes(this::takeMission))
             .then(CommandManager.literal("iptal").executes(this::cancelMission))
+            .then(CommandManager.literal("log")
+                .requires(source -> source.hasPermissionLevel(2))
+                .executes(this::showLog))
             .then(CommandManager.literal("wp")
                 .then(CommandManager.literal("dagitim").executes(this::getDagitimWp))
                 .then(CommandManager.literal("musteri").executes(this::getMusteriWp)))
@@ -268,7 +291,38 @@ public class CourierMod implements ModInitializer {
         src.sendMessage(Text.literal(P + "\u00a7e/kurye al \u00a77- Yeni bir teslimat gorevi alir."));
         src.sendMessage(Text.literal(P + "\u00a7e/kurye iptal \u00a77- Mevcut gorevi iptal eder."));
         if (src.hasPermissionLevel(2)) {
+            src.sendMessage(Text.literal(P + "\u00a7c/kurye log \u00a77- Aktivite loglarini listeler ve kaydeder."));
             src.sendMessage(Text.literal(P + "\u00a7c/kurye admin \u00a77- Admin yardim menusu."));
+        }
+        return 1;
+    }
+
+    private int showLog(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource src = context.getSource();
+        File logFile = new File("config/kurye_activity.log");
+        try {
+            logFile.getParentFile().mkdirs();
+            try (FileWriter writer = new FileWriter(logFile)) {
+                synchronized (activityLog) {
+                    for (String log : activityLog) {
+                        writer.write(log + "\n");
+                    }
+                }
+            }
+            src.sendMessage(Text.literal(P + "\u00a7aTum loglar \u00a7econfig/kurye_activity.log \u00a7adosyasina kaydedildi."));
+            logActivity((src.getPlayer() != null ? src.getPlayer().getGameProfile().getName() : "Console") + " kurye loglarini kaydetti.");
+        } catch (IOException e) {
+            src.sendMessage(Text.literal(P + "\u00a7cLog dosyasi olusturulamadi: " + e.getMessage()));
+            e.printStackTrace();
+        }
+
+        src.sendMessage(Text.literal(P + "\u00a7e--- Son 15 Aktivite Logu ---"));
+        synchronized (activityLog) {
+            int size = activityLog.size();
+            int start = Math.max(0, size - 15);
+            for (int i = start; i < size; i++) {
+                src.sendMessage(Text.literal("\u00a77" + activityLog.get(i)));
+            }
         }
         return 1;
     }
@@ -292,6 +346,7 @@ public class CourierMod implements ModInitializer {
         data.dagitimNoktalari.add(new LocationData(isim, pos.getX(), pos.getY(), pos.getZ(), p.getWorld().getRegistryKey().getValue().toString()));
         saveData();
         p.sendMessage(Text.literal(AP + "\u00a7aDa\u011f\u0131t\u0131m noktas\u0131 eklendi: \u00a7e" + isim));
+        logActivity(p.getGameProfile().getName() + " dagitim noktasi ekledi: " + isim + " (" + pos.getX() + "," + pos.getY() + "," + pos.getZ() + ")");
         return 1;
     }
 
@@ -303,6 +358,7 @@ public class CourierMod implements ModInitializer {
         data.musteriNoktalari.add(new LocationData(isim, pos.getX(), pos.getY(), pos.getZ(), p.getWorld().getRegistryKey().getValue().toString()));
         saveData();
         p.sendMessage(Text.literal(AP + "\u00a7aM\u00fc\u015fteri noktas\u0131 eklendi: \u00a7e" + isim));
+        logActivity(p.getGameProfile().getName() + " musteri noktasi ekledi: " + isim + " (" + pos.getX() + "," + pos.getY() + "," + pos.getZ() + ")");
         return 1;
     }
 
@@ -339,6 +395,7 @@ public class CourierMod implements ModInitializer {
             if (p != null) {
                 p.sendMessage(Text.literal(AP + "\u00a7aDa\u011f\u0131t\u0131m noktas\u0131 silindi: \u00a7e" + isim));
             }
+            logActivity((p != null ? p.getGameProfile().getName() : "Console") + " dagitim noktasi sildi: " + isim);
             return 1;
         } else {
             if (p != null) {
@@ -366,6 +423,7 @@ public class CourierMod implements ModInitializer {
             if (p != null) {
                 p.sendMessage(Text.literal(AP + "\u00a7aM\u00fc\u015fteri noktas\u0131 silindi: \u00a7e" + isim));
             }
+            logActivity((p != null ? p.getGameProfile().getName() : "Console") + " musteri noktasi sildi: " + isim);
             return 1;
         } else {
             if (p != null) {
@@ -422,8 +480,28 @@ public class CourierMod implements ModInitializer {
             return 0;
         }
 
-        LocationData dLoc = data.dagitimNoktalari.get(random.nextInt(data.dagitimNoktalari.size()));
-        LocationData mLoc = data.musteriNoktalari.get(random.nextInt(data.musteriNoktalari.size()));
+        // Distance filtering: Only find pairs (dagitim, musteri) within 500 meters
+        List<MissionPair> validPairs = new ArrayList<>();
+        for (LocationData dLoc : data.dagitimNoktalari) {
+            for (LocationData mLoc : data.musteriNoktalari) {
+                if (dLoc.world != null && dLoc.world.equalsIgnoreCase(mLoc.world)) {
+                    double distSq = Math.pow(dLoc.x - mLoc.x, 2) + Math.pow(dLoc.z - mLoc.z, 2);
+                    if (distSq <= 500.0 * 500.0) {
+                        validPairs.add(new MissionPair(dLoc, mLoc));
+                    }
+                }
+            }
+        }
+
+        if (validPairs.isEmpty()) {
+            p.sendMessage(Text.literal(P + "\u00a7c500 metre mesafe dahilinde teslimat yapilabilecek uygun is bulunamadi!"));
+            logActivity(p.getGameProfile().getName() + " gorev almaya calisti, ancak 500m dahilinde uygun is bulunamadi.");
+            return 0;
+        }
+
+        MissionPair selected = validPairs.get(random.nextInt(validPairs.size()));
+        LocationData dLoc = selected.dagitim;
+        LocationData mLoc = selected.musteri;
 
         PlayerMission pm = new PlayerMission();
         pm.state = "TOPLAMA";
@@ -442,6 +520,7 @@ public class CourierMod implements ModInitializer {
             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("\u00a7aWaypoint olu\u015fturmak i\u00e7in t\u0131kla!"))));
         message.append(nameText);
         p.sendMessage(message);
+        logActivity(p.getGameProfile().getName() + " yeni gorev aldi: " + dLoc.name + " -> " + mLoc.name);
         return 1;
     }
 
@@ -453,6 +532,7 @@ public class CourierMod implements ModInitializer {
             activeMissions.remove(p.getUuid());
             p.getInventory().remove(s -> s.isOf(Items.PAPER) && s.hasCustomName() && s.getName().getString().contains("M\u00fc\u015fteri Paketi"), 1, p.getInventory());
             p.sendMessage(Text.literal(P + "\u00a7cG\u00f6rev iptal edildi."));
+            logActivity(p.getGameProfile().getName() + " aktif gorevini iptal etti.");
         } else {
             p.sendMessage(Text.literal(P + "\u00a7cAktif bir g\u00f6revin yok."));
         }
@@ -559,6 +639,7 @@ public class CourierMod implements ModInitializer {
                             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("\u00a7aWaypoint olu\u015fturmak i\u00e7in t\u0131kla!"))));
                         message.append(nameText).append(Text.literal(" \u00a7akonumuna g\u00f6t\u00fcr."));
                         p.sendMessage(message);
+                        logActivity(p.getGameProfile().getName() + " paketi teslim aldi, musteriye goturuyor: " + pm.musteriLoc.name);
                     }
                 }
             } else if (pm.state.equals("TESLIMAT")) {
@@ -584,9 +665,11 @@ public class CourierMod implements ModInitializer {
 
                             p.sendMessage(Text.literal(P + "\u00a7bTeslimat ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                             p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
+                            logActivity(p.getGameProfile().getName() + " teslimati tamamladi! Yol: " + (int) totalDist + "m, Kazanc: " + (int) ucret + "\u20ba (" + pm.dagitimLoc.name + " -> " + pm.musteriLoc.name + ")");
                             activeMissions.remove(p.getUuid());
                         } else {
                             p.sendMessage(Text.literal(P + "\u00a7cPaket elinde de\u011fil! G\u00f6rev ba\u015far\u0131s\u0131z."));
+                            logActivity(p.getGameProfile().getName() + " teslimat yapmaya calisti fakat elinde paket yok! Gorev basarisiz.");
                             activeMissions.remove(p.getUuid());
                         }
                     }

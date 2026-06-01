@@ -10,8 +10,8 @@ Fabric tabanlı, Minecraft 1.20.1 için özel olarak geliştirilmiş **RP Sunucu
 
 ## 🚀 Öne Çıkan Özellikler
 
-* **Mesafe Sınırlaması (Yeni - v1.0.0):** Görev üretici, dağıtım noktalarını maksimum **500 metre** uzaklıktaki müşteri konumlarıyla eşleştirir. Yakında uygun iş yoksa oyuncu bilgilendirilir.
-* **Aktivite Günlüğü ve Log Sistemi (Yeni - v1.0.0):** Sunucu başlangıcından itibaren tüm kurye hareketleri (görev alma, tamamlama, iptal etme, admin işlemleri) kayıt altına alınır. `/kurye log` komutu ile son 15 log oyunda gösterilir ve tüm geçmiş `config/kurye_activity.log` dosyasına yazılır.
+* **Mesafe Sınırlaması (Yeni - v1.1.0):** Görev üretici, dağıtım noktalarını maksimum **500 metre** uzaklıktaki müşteri konumlarıyla eşleştirir. Yakında uygun iş yoksa oyuncu bilgilendirilir.
+* **Aktivite Günlüğü ve Log Sistemi (Yeni - v1.1.0):** Sunucu başlangıcından itibaren tüm kurye hareketleri (görev alma, tamamlama, iptal etme, admin işlemleri) kayıt altına alınır. `/kurye log` komutu ile son 15 log oyunda gösterilir ve tüm geçmiş `config/kurye_activity.log` dosyasına yazılır.
 * **Görsel Parçacık Efektleri:** Dağıtım veya teslimat noktasına yaklaşıldığında (100 blok) gökyüzüne doğru uzanan `END_ROD` efekt kolonu ve yerde `HAPPY_VILLAGER` yeşil halkası oluşur.
 * **JourneyMap Entegrasyonu:** Sohbet satırında tıklanabilir linkler aracılığıyla JourneyMap waypoint'leri otomatik olarak oluşturulabilir.
 * **Scoreboard Para Sistemi:** Sunucu scoreboard'undaki `para` değişkenini doğrudan okur ve ödülleri bu değişkene ekler.
@@ -57,7 +57,7 @@ Modu sıfırdan derlemek için CourierModSrc klasörü içinde terminalde şu ko
 gradlew clean build
 ```
 Derleme tamamlandıktan sonra hazır mod dosyası şu dizinde oluşacaktır:
-`build/libs/couriermod-1.0.0.jar`
+`build/libs/couriermod-1.1.0.jar`
 
 ### Sunucuya Kurulum
 1. Derlenen `.jar` dosyasını sunucunuzun `mods` klasörünün içerisine yerleştirin.
