@@ -1,0 +1,22 @@
+{
+	"schemaVersion": 1,
+	"id": "couriermod",
+	"version": "${version}",
+	"name": "Courier Mod",
+	"description": "RP Sunucusu Kurye Sistemi",
+	"authors": [
+		"Antigravity"
+	],
+	"environment": "server",
+	"entrypoints": {
+		"main": [
+			"com.rpsunucusu.courier.CourierMod"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.14.0",
+		"minecraft": "~1.20.1",
+		"java": ">=17",
+		"fabric-api": "*"
+	}
+}
