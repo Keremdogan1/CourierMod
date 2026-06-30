@@ -28,6 +28,14 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.world.ServerWorld;
 
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.util.math.Box;
+
+import java.lang.reflect.Method;
+import java.util.Iterator;
+
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -79,12 +87,17 @@ public class CourierMod implements ModInitializer {
     public static class DataModel {
         public List<LocationData> dagitimNoktalari = new ArrayList<>();
         public List<LocationData> musteriNoktalari = new ArrayList<>();
+        public List<LocationData> taksiDurakNoktalari = new ArrayList<>();
+        public List<LocationData> taksiHedefNoktalari = new ArrayList<>();
     }
 
     public static class PlayerMission {
+        public String type = "KURYE"; // "KURYE" veya "TAKSI"
         public String state;
         public LocationData dagitimLoc;
         public LocationData musteriLoc;
+        public UUID taxiVillagerId = null;
+        public int ticksAtTarget = 0;
     }
 
     public static class MissionPair {
@@ -184,12 +197,20 @@ public class CourierMod implements ModInitializer {
     }
 
     private int getPlayerPara(MinecraftServer server, ServerPlayerEntity p) {
-        Scoreboard sb = server.getScoreboard();
-        ScoreboardObjective obj = sb.getNullableObjective(PARA_OBJECTIVE);
-        if (obj == null) return 0;
-        String name = p.getGameProfile().getName();
-        if (!sb.playerHasObjective(name, obj)) return 0;
-        return sb.getPlayerScore(name, obj).getScore();
+        try {
+            Class<?> playerDataStateClass = Class.forName("com.example.secretid.PlayerDataState");
+            Method getServerStateMethod = playerDataStateClass.getMethod("getServerState", MinecraftServer.class);
+            Object stateInstance = getServerStateMethod.invoke(null, server);
+            Method getBalanceMethod = playerDataStateClass.getMethod("getBalance", java.util.UUID.class);
+            return ((Double) getBalanceMethod.invoke(stateInstance, p.getUuid())).intValue();
+        } catch (Exception e) {
+            Scoreboard sb = server.getScoreboard();
+            ScoreboardObjective obj = sb.getNullableObjective(PARA_OBJECTIVE);
+            if (obj == null) return 0;
+            String name = p.getGameProfile().getName();
+            if (!sb.playerHasObjective(name, obj)) return 0;
+            return sb.getPlayerScore(name, obj).getScore();
+        }
     }
 
     public int getPlayerParaPublic(MinecraftServer server, ServerPlayerEntity p) {
@@ -197,12 +218,20 @@ public class CourierMod implements ModInitializer {
     }
 
     private void addPlayerPara(MinecraftServer server, ServerPlayerEntity p, int amount) {
-        Scoreboard sb = server.getScoreboard();
-        ensureParaObjective(server);
-        ScoreboardObjective obj = sb.getNullableObjective(PARA_OBJECTIVE);
-        if (obj == null) return;
-        ScoreboardPlayerScore score = sb.getPlayerScore(p.getGameProfile().getName(), obj);
-        score.setScore(score.getScore() + amount);
+        try {
+            Class<?> playerDataStateClass = Class.forName("com.example.secretid.PlayerDataState");
+            Method getServerStateMethod = playerDataStateClass.getMethod("getServerState", MinecraftServer.class);
+            Object stateInstance = getServerStateMethod.invoke(null, server);
+            Method addBalanceMethod = playerDataStateClass.getMethod("addBalance", java.util.UUID.class, double.class);
+            addBalanceMethod.invoke(stateInstance, p.getUuid(), (double) amount);
+        } catch (Exception e) {
+            Scoreboard sb = server.getScoreboard();
+            ensureParaObjective(server);
+            ScoreboardObjective obj = sb.getNullableObjective(PARA_OBJECTIVE);
+            if (obj == null) return;
+            ScoreboardPlayerScore score = sb.getPlayerScore(p.getGameProfile().getName(), obj);
+            score.setScore(score.getScore() + amount);
+        }
     }
 
     private void updateSidebar(MinecraftServer server, ServerPlayerEntity p) {
@@ -257,31 +286,26 @@ public class CourierMod implements ModInitializer {
             .then(CommandManager.literal("admin")
                 .requires(source -> source.hasPermissionLevel(2))
                 .executes(this::adminHelpCommand)
-                .then(CommandManager.literal("dagitim-ekle")
-                    .then(CommandManager.argument("isim", StringArgumentType.string())
-                    .executes(this::addDagitim)))
-                .then(CommandManager.literal("musteri-ekle")
-                    .then(CommandManager.argument("isim", StringArgumentType.string())
-                    .executes(this::addMusteri)))
-                .then(CommandManager.literal("dagitim-sil")
-                    .then(CommandManager.argument("isim", StringArgumentType.string())
-                        .suggests((context, builder) -> {
-                            for (LocationData loc : data.dagitimNoktalari) {
-                                builder.suggest(loc.name);
-                            }
-                            return builder.buildFuture();
-                        })
-                        .executes(this::deleteDagitim)))
-                .then(CommandManager.literal("musteri-sil")
-                    .then(CommandManager.argument("isim", StringArgumentType.string())
-                        .suggests((context, builder) -> {
-                            for (LocationData loc : data.musteriNoktalari) {
-                                builder.suggest(loc.name);
-                            }
-                            return builder.buildFuture();
-                        })
-                        .executes(this::deleteMusteri)))
+                .then(CommandManager.literal("dagitim-ekle").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::addDagitim)))
+                .then(CommandManager.literal("musteri-ekle").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::addMusteri)))
+                .then(CommandManager.literal("dagitim-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteDagitim)))
+                .then(CommandManager.literal("musteri-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteMusteri)))
                 .then(CommandManager.literal("listele").executes(this::listPoints))
+            )
+        );
+
+        dispatcher.register(CommandManager.literal("taksi")
+            .executes(this::taksiHelpCommand)
+            .then(CommandManager.literal("al").executes(this::takeTaksiMission))
+            .then(CommandManager.literal("iptal").executes(this::cancelMission))
+            .then(CommandManager.literal("admin")
+                .requires(source -> source.hasPermissionLevel(2))
+                .executes(this::taksiAdminHelpCommand)
+                .then(CommandManager.literal("durak-ekle").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::addTaksiDurak)))
+                .then(CommandManager.literal("hedef-ekle").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::addTaksiHedef)))
+                .then(CommandManager.literal("durak-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteTaksiDurak)))
+                .then(CommandManager.literal("hedef-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteTaksiHedef)))
+                .then(CommandManager.literal("listele").executes(this::listTaksiPoints))
             )
         );
     }
@@ -480,14 +504,17 @@ public class CourierMod implements ModInitializer {
             return 0;
         }
 
-        // Distance filtering: Only find pairs (dagitim, musteri) within 500 meters
+        // Distance filtering: Only find dagitim points within 500 meters of the player
         List<MissionPair> validPairs = new ArrayList<>();
+        BlockPos pPos = p.getBlockPos();
         for (LocationData dLoc : data.dagitimNoktalari) {
-            for (LocationData mLoc : data.musteriNoktalari) {
-                if (dLoc.world != null && dLoc.world.equalsIgnoreCase(mLoc.world)) {
-                    double distSq = Math.pow(dLoc.x - mLoc.x, 2) + Math.pow(dLoc.z - mLoc.z, 2);
-                    if (distSq <= 500.0 * 500.0) {
-                        validPairs.add(new MissionPair(dLoc, mLoc));
+            if (dLoc.world != null && dLoc.world.equalsIgnoreCase(p.getWorld().getRegistryKey().getValue().toString())) {
+                double pDistSq = Math.pow(dLoc.x - pPos.getX(), 2) + Math.pow(dLoc.z - pPos.getZ(), 2);
+                if (pDistSq <= 500.0 * 500.0) {
+                    for (LocationData mLoc : data.musteriNoktalari) {
+                        if (dLoc.world.equalsIgnoreCase(mLoc.world)) {
+                            validPairs.add(new MissionPair(dLoc, mLoc));
+                        }
                     }
                 }
             }
@@ -504,6 +531,7 @@ public class CourierMod implements ModInitializer {
         LocationData mLoc = selected.musteri;
 
         PlayerMission pm = new PlayerMission();
+        pm.type = "KURYE";
         pm.state = "TOPLAMA";
         pm.dagitimLoc = dLoc;
         pm.musteriLoc = mLoc;
@@ -529,6 +557,13 @@ public class CourierMod implements ModInitializer {
         if (p == null) return 0;
 
         if (activeMissions.containsKey(p.getUuid())) {
+            PlayerMission pm = activeMissions.get(p.getUuid());
+            if (pm.type.equals("TAKSI") && pm.taxiVillagerId != null) {
+                if (p.getWorld() instanceof ServerWorld) {
+                    Entity v = ((ServerWorld)p.getWorld()).getEntity(pm.taxiVillagerId);
+                    if (v != null) v.discard();
+                }
+            }
             activeMissions.remove(p.getUuid());
             p.getInventory().remove(s -> s.isOf(Items.PAPER) && s.hasCustomName() && s.getName().getString().contains("M\u00fc\u015fteri Paketi"), 1, p.getInventory());
             p.sendMessage(Text.literal(P + "\u00a7cG\u00f6rev iptal edildi."));
@@ -536,6 +571,138 @@ public class CourierMod implements ModInitializer {
         } else {
             p.sendMessage(Text.literal(P + "\u00a7cAktif bir g\u00f6revin yok."));
         }
+        return 1;
+    }
+
+    // === TAKSI COMMANDS ===
+    private int taksiHelpCommand(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource src = context.getSource();
+        src.sendMessage(Text.literal(P + "\u00a7e/taksi al \u00a77- Yeni bir taksi gorevi alir."));
+        src.sendMessage(Text.literal(P + "\u00a7e/taksi iptal \u00a77- Mevcut gorevi iptal eder."));
+        return 1;
+    }
+
+    private int taksiAdminHelpCommand(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource src = context.getSource();
+        src.sendMessage(Text.literal("\u00a7m---------\u00a7r " + AP + " \u00a7m---------"));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin durak-ekle <isim> \u00a77- Taksi duragi ekler."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin hedef-ekle <isim> \u00a77- Taksi hedefi ekler."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin durak-sil <isim> \u00a77- Taksi duragi siler."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin hedef-sil <isim> \u00a77- Taksi hedefi siler."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin listele \u00a77- Taksi noktalarini listeler."));
+        return 1;
+    }
+
+    private int addTaksiDurak(CommandContext<ServerCommandSource> context) {
+        String isim = StringArgumentType.getString(context, "isim");
+        if (context.getSource().getPlayer() == null) return 0;
+        ServerPlayerEntity p = context.getSource().getPlayer();
+        BlockPos pos = p.getBlockPos();
+        data.taksiDurakNoktalari.add(new LocationData(isim, pos.getX(), pos.getY(), pos.getZ(), p.getWorld().getRegistryKey().getValue().toString()));
+        saveData();
+        p.sendMessage(Text.literal(AP + "\u00a7aTaksi duragi eklendi: \u00a7e" + isim));
+        return 1;
+    }
+
+    private int addTaksiHedef(CommandContext<ServerCommandSource> context) {
+        String isim = StringArgumentType.getString(context, "isim");
+        if (context.getSource().getPlayer() == null) return 0;
+        ServerPlayerEntity p = context.getSource().getPlayer();
+        BlockPos pos = p.getBlockPos();
+        data.taksiHedefNoktalari.add(new LocationData(isim, pos.getX(), pos.getY(), pos.getZ(), p.getWorld().getRegistryKey().getValue().toString()));
+        saveData();
+        p.sendMessage(Text.literal(AP + "\u00a7aTaksi hedefi eklendi: \u00a7e" + isim));
+        return 1;
+    }
+
+    private int deleteTaksiDurak(CommandContext<ServerCommandSource> context) {
+        String isim = StringArgumentType.getString(context, "isim");
+        LocationData found = null;
+        for (LocationData loc : data.taksiDurakNoktalari) { if (loc.name.equalsIgnoreCase(isim)) found = loc; }
+        if (found != null) {
+            data.taksiDurakNoktalari.remove(found); saveData();
+            context.getSource().sendMessage(Text.literal(AP + "\u00a7aTaksi duragi silindi."));
+            return 1;
+        }
+        return 0;
+    }
+
+    private int deleteTaksiHedef(CommandContext<ServerCommandSource> context) {
+        String isim = StringArgumentType.getString(context, "isim");
+        LocationData found = null;
+        for (LocationData loc : data.taksiHedefNoktalari) { if (loc.name.equalsIgnoreCase(isim)) found = loc; }
+        if (found != null) {
+            data.taksiHedefNoktalari.remove(found); saveData();
+            context.getSource().sendMessage(Text.literal(AP + "\u00a7aTaksi hedefi silindi."));
+            return 1;
+        }
+        return 0;
+    }
+
+    private int listTaksiPoints(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource src = context.getSource();
+        src.sendMessage(Text.literal(AP + "\u00a7e--- Taksi Duraklari ---"));
+        for (LocationData l : data.taksiDurakNoktalari) src.sendMessage(Text.literal("\u00a77- \u00a7f" + l.name));
+        src.sendMessage(Text.literal(AP + "\u00a7e--- Taksi Hedefleri ---"));
+        for (LocationData l : data.taksiHedefNoktalari) src.sendMessage(Text.literal("\u00a77- \u00a7f" + l.name));
+        return 1;
+    }
+
+    private int takeTaksiMission(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity p = context.getSource().getPlayer();
+        if (p == null) return 0;
+        if (activeMissions.containsKey(p.getUuid())) {
+            p.sendMessage(Text.literal(P + "\u00a7cZaten aktif bir gorevin var (Kurye veya Taksi)!"));
+            return 0;
+        }
+        if (data.taksiDurakNoktalari.isEmpty() || data.taksiHedefNoktalari.isEmpty()) {
+            p.sendMessage(Text.literal(P + "\u00a7cTaksi noktalari eksik!"));
+            return 0;
+        }
+        
+        List<MissionPair> validPairs = new ArrayList<>();
+        BlockPos pPos = p.getBlockPos();
+        for (LocationData dLoc : data.taksiDurakNoktalari) {
+            if (dLoc.world != null && dLoc.world.equalsIgnoreCase(p.getWorld().getRegistryKey().getValue().toString())) {
+                double pDistSq = Math.pow(dLoc.x - pPos.getX(), 2) + Math.pow(dLoc.z - pPos.getZ(), 2);
+                if (pDistSq <= 500.0 * 500.0) {
+                    for (LocationData mLoc : data.taksiHedefNoktalari) {
+                        if (dLoc.world.equalsIgnoreCase(mLoc.world)) {
+                            validPairs.add(new MissionPair(dLoc, mLoc));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (validPairs.isEmpty()) {
+            p.sendMessage(Text.literal(P + "\u00a7c500 metre mesafe dahilinde uygun taksi duragi bulunamadi!"));
+            return 0;
+        }
+
+        MissionPair selected = validPairs.get(random.nextInt(validPairs.size()));
+        PlayerMission pm = new PlayerMission();
+        pm.type = "TAKSI";
+        pm.state = "TOPLAMA";
+        pm.dagitimLoc = selected.dagitim;
+        pm.musteriLoc = selected.musteri;
+
+        if (p.getWorld() instanceof ServerWorld) {
+            ServerWorld world = (ServerWorld) p.getWorld();
+            VillagerEntity villager = EntityType.VILLAGER.create(world);
+            if (villager != null) {
+                villager.refreshPositionAndAngles(pm.dagitimLoc.x + 0.5, pm.dagitimLoc.y, pm.dagitimLoc.z + 0.5, 0, 0);
+                villager.setAiDisabled(true);
+                villager.setInvulnerable(true);
+                villager.setCustomName(Text.literal("\u00a7eTaksi Musterisi"));
+                villager.setCustomNameVisible(true);
+                world.spawnEntity(villager);
+                pm.taxiVillagerId = villager.getUuid();
+            }
+        }
+
+        activeMissions.put(p.getUuid(), pm);
+        p.sendMessage(Text.literal(P + "\u00a7aTaksi gorevi alindi! \u00a7eDurak: \u00a7b" + pm.dagitimLoc.name));
         return 1;
     }
 
@@ -619,59 +786,124 @@ public class CourierMod implements ModInitializer {
             if (pm == null) continue;
 
             BlockPos pPos = p.getBlockPos();
-            if (pm.state.equals("TOPLAMA")) {
-                if (p.getWorld().getRegistryKey().getValue().toString().equals(pm.dagitimLoc.world)) {
-                    double dist = Math.sqrt(pPos.getSquaredDistance(pm.dagitimLoc.x, pm.dagitimLoc.y, pm.dagitimLoc.z));
-                    if (dist < 5.0) {
-                        // Check hotbar for empty slot before giving item
-                        if (!hasEmptyHotbarSlot(p)) {
-                            p.sendMessage(Text.literal(P + "\u00a7c\u00d6nce elinin bo\u015f oldu\u011fundan emin ol! Hotbar\u0131nda yer yok."));
-                            continue;
+            if (pm.type.equals("KURYE")) {
+                if (pm.state.equals("TOPLAMA")) {
+                    if (p.getWorld().getRegistryKey().getValue().toString().equals(pm.dagitimLoc.world)) {
+                        double dist = Math.sqrt(pPos.getSquaredDistance(pm.dagitimLoc.x, pm.dagitimLoc.y, pm.dagitimLoc.z));
+                        if (dist < 5.0) {
+                            if (!hasEmptyHotbarSlot(p)) {
+                                p.sendMessage(Text.literal(P + "\u00a7c\u00d6nce elinin bo\u015f oldu\u011fundan emin ol! Hotbar\u0131nda yer yok."));
+                                continue;
+                            }
+                            pm.state = "TESLIMAT";
+                            ItemStack item = new ItemStack(Items.PAPER);
+                            item.setCustomName(Text.literal("\u00a7dM\u00fc\u015fteri Paketi"));
+                            p.getInventory().insertStack(item);
+                            MutableText message = Text.literal(P + "\u00a7aPaketi ald\u0131n! \u015eimdi ");
+                            MutableText nameText = Text.literal("\u00a7b" + pm.musteriLoc.name);
+                            nameText.setStyle(nameText.getStyle()
+                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kurye wp musteri"))
+                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("\u00a7aWaypoint olu\u015fturmak i\u00e7in t\u0131kla!"))));
+                            message.append(nameText).append(Text.literal(" \u00a7akonumuna g\u00f6t\u00fcr."));
+                            p.sendMessage(message);
+                            logActivity(p.getGameProfile().getName() + " paketi teslim aldi, musteriye goturuyor: " + pm.musteriLoc.name);
                         }
-                        pm.state = "TESLIMAT";
-                        ItemStack item = new ItemStack(Items.PAPER);
-                        item.setCustomName(Text.literal("\u00a7dM\u00fc\u015fteri Paketi"));
-                        p.getInventory().insertStack(item);
-                        MutableText message = Text.literal(P + "\u00a7aPaketi ald\u0131n! \u015eimdi ");
-                        MutableText nameText = Text.literal("\u00a7b" + pm.musteriLoc.name);
-                        nameText.setStyle(nameText.getStyle()
-                            .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kurye wp musteri"))
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("\u00a7aWaypoint olu\u015fturmak i\u00e7in t\u0131kla!"))));
-                        message.append(nameText).append(Text.literal(" \u00a7akonumuna g\u00f6t\u00fcr."));
-                        p.sendMessage(message);
-                        logActivity(p.getGameProfile().getName() + " paketi teslim aldi, musteriye goturuyor: " + pm.musteriLoc.name);
                     }
-                }
-            } else if (pm.state.equals("TESLIMAT")) {
-                if (p.getWorld().getRegistryKey().getValue().toString().equals(pm.musteriLoc.world)) {
-                    double dist = Math.sqrt(pPos.getSquaredDistance(pm.musteriLoc.x, pm.musteriLoc.y, pm.musteriLoc.z));
-                    if (dist < 5.0) {
-                        boolean hasItem = false;
-                        for (int i = 0; i < p.getInventory().size(); i++) {
-                            ItemStack stack = p.getInventory().getStack(i);
-                            if (stack.isOf(Items.PAPER) && stack.hasCustomName() && stack.getName().getString().contains("M\u00fc\u015fteri Paketi")) {
-                                stack.decrement(1);
-                                hasItem = true;
-                                break;
+                } else if (pm.state.equals("TESLIMAT")) {
+                    if (p.getWorld().getRegistryKey().getValue().toString().equals(pm.musteriLoc.world)) {
+                        double dist = Math.sqrt(pPos.getSquaredDistance(pm.musteriLoc.x, pm.musteriLoc.y, pm.musteriLoc.z));
+                        if (dist < 5.0) {
+                            boolean hasItem = false;
+                            for (int i = 0; i < p.getInventory().size(); i++) {
+                                ItemStack stack = p.getInventory().getStack(i);
+                                if (stack.isOf(Items.PAPER) && stack.hasCustomName() && stack.getName().getString().contains("M\u00fc\u015fteri Paketi")) {
+                                    stack.decrement(1);
+                                    hasItem = true;
+                                    break;
+                                }
+                            }
+                            if (hasItem) {
+                                double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
+                                double ucret = Math.floor(totalDist * UCRET_METRE_BASI);
+                                if (ucret < MIN_UCRET) ucret = MIN_UCRET;
+                                addPlayerPara(server, p, (int) ucret);
+                                p.sendMessage(Text.literal(P + "\u00a7bTeslimat ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
+                                p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
+                                logActivity(p.getGameProfile().getName() + " teslimati tamamladi! Yol: " + (int) totalDist + "m, Kazanc: " + (int) ucret + "\u20ba (" + pm.dagitimLoc.name + " -> " + pm.musteriLoc.name + ")");
+                                activeMissions.remove(p.getUuid());
+                            } else {
+                                p.sendMessage(Text.literal(P + "\u00a7cPaket elinde de\u011fil! G\u00f6rev ba\u015far\u0131s\u0131z."));
+                                logActivity(p.getGameProfile().getName() + " teslimat yapmaya calisti fakat elinde paket yok! Gorev basarisiz.");
+                                activeMissions.remove(p.getUuid());
                             }
                         }
+                    }
+                }
+            } else if (pm.type.equals("TAKSI")) {
+                boolean inAutomobilityCar = false;
+                if (p.hasVehicle()) {
+                    String vehicleId = EntityType.getId(p.getVehicle().getType()).toString();
+                    if (vehicleId.contains("automobility")) {
+                        inAutomobilityCar = true;
+                    }
+                }
 
-                        if (hasItem) {
-                            double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
-                            double ucret = Math.floor(totalDist * UCRET_METRE_BASI);
-                            if (ucret < MIN_UCRET) ucret = MIN_UCRET;
-
-                            addPlayerPara(server, p, (int) ucret);
-
-                            p.sendMessage(Text.literal(P + "\u00a7bTeslimat ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
-                            p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
-                            logActivity(p.getGameProfile().getName() + " teslimati tamamladi! Yol: " + (int) totalDist + "m, Kazanc: " + (int) ucret + "\u20ba (" + pm.dagitimLoc.name + " -> " + pm.musteriLoc.name + ")");
-                            activeMissions.remove(p.getUuid());
-                        } else {
-                            p.sendMessage(Text.literal(P + "\u00a7cPaket elinde de\u011fil! G\u00f6rev ba\u015far\u0131s\u0131z."));
-                            logActivity(p.getGameProfile().getName() + " teslimat yapmaya calisti fakat elinde paket yok! Gorev basarisiz.");
-                            activeMissions.remove(p.getUuid());
+                if (pm.state.equals("TOPLAMA")) {
+                    if (p.getWorld().getRegistryKey().getValue().toString().equals(pm.dagitimLoc.world)) {
+                        double dist = Math.sqrt(pPos.getSquaredDistance(pm.dagitimLoc.x, pm.dagitimLoc.y, pm.dagitimLoc.z));
+                        if (dist < 5.0) {
+                            if (!inAutomobilityCar) {
+                                if (tickCounter % 2 == 0) p.sendMessage(Text.literal(P + "\u00a7cMusteriyi almak icin Automobility aracinda olmalisin!"), true);
+                                continue;
+                            }
+                            pm.state = "TESLIMAT";
+                            if (p.getWorld() instanceof ServerWorld && pm.taxiVillagerId != null) {
+                                Entity v = ((ServerWorld)p.getWorld()).getEntity(pm.taxiVillagerId);
+                                if (v != null) v.discard();
+                            }
+                            p.sendMessage(Text.literal(P + "\u00a7aMusteri araca bindi! \u00a7eHedef: \u00a7b" + pm.musteriLoc.name));
                         }
+                    }
+                } else if (pm.state.equals("TESLIMAT")) {
+                    if (p.getWorld().getRegistryKey().getValue().toString().equals(pm.musteriLoc.world)) {
+                        double dist = Math.sqrt(pPos.getSquaredDistance(pm.musteriLoc.x, pm.musteriLoc.y, pm.musteriLoc.z));
+                        if (dist < 5.0) {
+                            if (!inAutomobilityCar) {
+                                if (tickCounter % 2 == 0) p.sendMessage(Text.literal(P + "\u00a7cMusteriyi hedefe Automobility araciyla goturmelisin!"), true);
+                                continue;
+                            }
+                            pm.state = "TAMAMLANIYOR";
+                            pm.ticksAtTarget = 0;
+                            if (p.getWorld() instanceof ServerWorld) {
+                                ServerWorld world = (ServerWorld) p.getWorld();
+                                VillagerEntity villager = EntityType.VILLAGER.create(world);
+                                if (villager != null) {
+                                    villager.refreshPositionAndAngles(pm.musteriLoc.x + 0.5, pm.musteriLoc.y, pm.musteriLoc.z + 0.5, 0, 0);
+                                    villager.setAiDisabled(true);
+                                    villager.setInvulnerable(true);
+                                    villager.setCustomName(Text.literal("\u00a7eTaksi Musterisi"));
+                                    villager.setCustomNameVisible(true);
+                                    world.spawnEntity(villager);
+                                    pm.taxiVillagerId = villager.getUuid();
+                                }
+                            }
+                            p.sendMessage(Text.literal(P + "\u00a7eMusteri iniyor, lutfen bekle..."));
+                        }
+                    }
+                } else if (pm.state.equals("TAMAMLANIYOR")) {
+                    pm.ticksAtTarget++;
+                    if (pm.ticksAtTarget >= 2) { 
+                        if (p.getWorld() instanceof ServerWorld && pm.taxiVillagerId != null) {
+                            Entity v = ((ServerWorld)p.getWorld()).getEntity(pm.taxiVillagerId);
+                            if (v != null) v.discard();
+                        }
+                        double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
+                        double ucret = Math.floor(totalDist * UCRET_METRE_BASI);
+                        if (ucret < MIN_UCRET) ucret = MIN_UCRET;
+                        addPlayerPara(server, p, (int) ucret);
+                        p.sendMessage(Text.literal(P + "\u00a7bTaksi gorevi basarili! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
+                        p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
+                        activeMissions.remove(p.getUuid());
                     }
                 }
             }
