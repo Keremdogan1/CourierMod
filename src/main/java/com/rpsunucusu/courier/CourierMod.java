@@ -84,11 +84,19 @@ public class CourierMod implements ModInitializer {
         }
     }
 
+    public static class PlayerStats {
+        public int kuryeLevel = 1;
+        public double kuryeXp = 0;
+        public int taksiLevel = 1;
+        public double taksiXp = 0;
+    }
+
     public static class DataModel {
         public List<LocationData> dagitimNoktalari = new ArrayList<>();
         public List<LocationData> musteriNoktalari = new ArrayList<>();
         public List<LocationData> taksiNoktalari = new ArrayList<>();
         public List<String> ipucuKapatanlar = new ArrayList<>();
+        public Map<String, PlayerStats> playerStats = new HashMap<>();
     }
 
     public static class PlayerMission {
@@ -98,6 +106,7 @@ public class CourierMod implements ModInitializer {
         public LocationData musteriLoc;
         public UUID taxiVillagerId = null;
         public int ticksAtTarget = 0;
+        public long missionStartTime = System.currentTimeMillis();
     }
 
     private static final String[] TIPS = {
@@ -717,6 +726,44 @@ public class CourierMod implements ModInitializer {
     private int tipCounter = 0;
     private boolean tabPlaceholdersRegistered = false;
 
+    public PlayerStats getStats(ServerPlayerEntity p) {
+        return data.playerStats.computeIfAbsent(p.getUuidAsString(), k -> new PlayerStats());
+    }
+
+    public void addXp(ServerPlayerEntity p, String jobType, double xpGained) {
+        PlayerStats stats = getStats(p);
+        boolean leveledUp = false;
+        int newLevel;
+        if (jobType.equals("KURYE")) {
+            stats.kuryeXp += xpGained;
+            while (stats.kuryeXp >= stats.kuryeLevel * 100) {
+                stats.kuryeXp -= stats.kuryeLevel * 100;
+                stats.kuryeLevel++;
+                leveledUp = true;
+            }
+            newLevel = stats.kuryeLevel;
+        } else {
+            stats.taksiXp += xpGained;
+            while (stats.taksiXp >= stats.taksiLevel * 100) {
+                stats.taksiXp -= stats.taksiLevel * 100;
+                stats.taksiLevel++;
+                leveledUp = true;
+            }
+            newLevel = stats.taksiLevel;
+        }
+        
+        saveData();
+        p.sendMessage(Text.literal(P + "\u00a7a+" + (int)xpGained + " XP Kazan\u0131ld\u0131!"));
+        
+        if (leveledUp) {
+            String title = "\u00a7a\u00a7lSEV\u0130YE ATLANDI!";
+            String subtitle = "\u00a7e" + jobType + " Seviyesi: \u00a7b" + newLevel;
+            p.getServer().getCommandManager().executeWithPrefix(p.getServer().getCommandSource(), "title " + p.getName().getString() + " title {\"text\":\"" + title + "\"}");
+            p.getServer().getCommandManager().executeWithPrefix(p.getServer().getCommandSource(), "title " + p.getName().getString() + " subtitle {\"text\":\"" + subtitle + "\"}");
+            p.getServer().getCommandManager().executeWithPrefix(p.getServer().getCommandSource(), "playsound entity.player.levelup player " + p.getName().getString() + " ~ ~ ~ 1.0 1.0");
+        }
+    }
+
     private boolean hasEmptyHotbarSlot(ServerPlayerEntity p) {
         for (int i = 0; i < 9; i++) {
             if (p.getInventory().getStack(i).isEmpty()) return true;
@@ -792,10 +839,23 @@ public class CourierMod implements ModInitializer {
             PlayerMission pm = activeMissions.get(p.getUuid());
             if (pm == null) continue;
             
-            if (tipCounter % 15 == 0 && !data.ipucuKapatanlar.contains(p.getUuidAsString())) {
+            PlayerStats stats = getStats(p);
+            int currentLevel = pm.type.equals("KURYE") ? stats.kuryeLevel : stats.taksiLevel;
+            double currentXp = pm.type.equals("KURYE") ? stats.kuryeXp : stats.taksiXp;
+            int reqXp = currentLevel * 100;
+            
+            long elapsedMillis = System.currentTimeMillis() - pm.missionStartTime;
+            long elapsedSeconds = elapsedMillis / 1000;
+            String timeStr = String.format("%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60);
+            
+            String actionBarText = "\u00a7f[\u00a7e\u23f1 " + timeStr + "\u00a7f] \u00a7b" + pm.type + " Lvl " + currentLevel + " \u00a77(XP: " + (int)currentXp + "/" + reqXp + ")";
+            
+            if (tipCounter % 15 >= 0 && tipCounter % 15 <= 2 && !data.ipucuKapatanlar.contains(p.getUuidAsString())) {
                 String tip = TIPS[(tipCounter / 15) % TIPS.length];
-                p.sendMessage(Text.literal(tip), true);
+                actionBarText = "\u00a7f[\u00a7e\u23f1 " + timeStr + "\u00a7f] " + tip;
             }
+            
+            p.sendMessage(Text.literal(actionBarText), true);
 
             BlockPos pPos = p.getBlockPos();
             if (pm.type.equals("KURYE")) {
@@ -842,6 +902,16 @@ public class CourierMod implements ModInitializer {
                                 p.sendMessage(Text.literal(P + "\u00a7bTeslimat ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                                 p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
                                 logActivity(p.getGameProfile().getName() + " teslimati tamamladi! Yol: " + (int) totalDist + "m, Kazanc: " + (int) ucret + "\u20ba (" + pm.dagitimLoc.name + " -> " + pm.musteriLoc.name + ")");
+                                
+                                long completionElapsedMillis = System.currentTimeMillis() - pm.missionStartTime;
+                                double completionElapsedSeconds = completionElapsedMillis / 1000.0;
+                                if (completionElapsedSeconds < 1) completionElapsedSeconds = 1;
+                                double speedFactor = (totalDist / completionElapsedSeconds) / 10.0;
+                                if (speedFactor < 0.5) speedFactor = 0.5;
+                                if (speedFactor > 2.0) speedFactor = 2.0;
+                                double gainedXp = (totalDist * 0.5) * speedFactor;
+                                addXp(p, "KURYE", gainedXp);
+                                
                                 activeMissions.remove(p.getUuid());
                             } else {
                                 p.sendMessage(Text.literal(P + "\u00a7cPaket elinde de\u011fil! G\u00f6rev ba\u015far\u0131s\u0131z."));
@@ -922,6 +992,16 @@ public class CourierMod implements ModInitializer {
                         addPlayerPara(server, p, (int) ucret);
                         p.sendMessage(Text.literal(P + "\u00a7bTaksi g\u00f6revi ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                         p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
+                        
+                        long completionElapsedMillis = System.currentTimeMillis() - pm.missionStartTime;
+                        double completionElapsedSeconds = completionElapsedMillis / 1000.0;
+                        if (completionElapsedSeconds < 1) completionElapsedSeconds = 1;
+                        double speedFactor = (totalDist / completionElapsedSeconds) / 10.0;
+                        if (speedFactor < 0.5) speedFactor = 0.5;
+                        if (speedFactor > 2.0) speedFactor = 2.0;
+                        double gainedXp = (totalDist * 0.5) * speedFactor;
+                        addXp(p, "TAKSI", gainedXp);
+                        
                         activeMissions.remove(p.getUuid());
                     }
                 }
