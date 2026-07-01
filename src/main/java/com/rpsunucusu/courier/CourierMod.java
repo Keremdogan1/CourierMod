@@ -348,6 +348,7 @@ public class CourierMod implements ModInitializer {
         src.sendMessage(Text.literal(P + "\u00a7e/kurye al \u00a77- Yeni bir teslimat g\u00f6revi al\u0131r."));
         src.sendMessage(Text.literal(P + "\u00a7e/kurye iptal \u00a77- Mevcut g\u00f6revi iptal eder."));
         src.sendMessage(Text.literal(P + "\u00a7e/kurye ipucu \u00a77- \u0130pu\u00e7lar\u0131n\u0131 a\u00e7ar/kapat\u0131r."));
+        src.sendMessage(Text.literal(P + "\u00a7e/kurye siralama \u00a77- En iyi kuryeleri listeler."));
         if (src.hasPermissionLevel(2)) {
             src.sendMessage(Text.literal(P + "\u00a7c/kurye log \u00a77- Aktivite loglarini listeler ve kaydeder."));
             src.sendMessage(Text.literal(P + "\u00a7c/kurye admin \u00a77- Admin yardim menusu."));
@@ -673,6 +674,7 @@ public class CourierMod implements ModInitializer {
         src.sendMessage(Text.literal(P + "\u00a7e/taksi al \u00a77- Yeni bir taksi g\u00f6revi al\u0131r."));
         src.sendMessage(Text.literal(P + "\u00a7e/taksi iptal \u00a77- Mevcut g\u00f6revi iptal eder."));
         src.sendMessage(Text.literal(P + "\u00a7e/taksi ipucu \u00a77- \u0130pu\u00e7lar\u0131n\u0131 a\u00e7ar/kapat\u0131r."));
+        src.sendMessage(Text.literal(P + "\u00a7e/taksi siralama \u00a77- En iyi taksicileri listeler."));
         return 1;
     }
 
