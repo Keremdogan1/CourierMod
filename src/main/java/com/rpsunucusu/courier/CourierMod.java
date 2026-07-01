@@ -394,6 +394,9 @@ public class CourierMod implements ModInitializer {
         src.sendMessage(Text.literal("\u00a7e/kurye admin dagitim-sil <isim> \u00a77- Da\u011f\u0131t\u0131m noktas\u0131 siler."));
         src.sendMessage(Text.literal("\u00a7e/kurye admin musteri-sil <isim> \u00a77- M\u00fc\u015fteri noktas\u0131 siler."));
         src.sendMessage(Text.literal("\u00a7e/kurye admin listele \u00a77- T\u00fcm noktalar\u0131 listeler."));
+        src.sendMessage(Text.literal("\u00a7e/kurye admin carpan [<deger>] \u00a77- Ekonomi \u00e7arpan\u0131n\u0131 g\u00f6sterir/ayarlar."));
+        src.sendMessage(Text.literal("\u00a7e/kurye admin carpan-sifirla \u00a77- Ekonomi \u00e7arpan\u0131n\u0131 varsay\u0131lana (0.1) d\u00f6nd\u00fcr\u00fcr."));
+        src.sendMessage(Text.literal("\u00a7e/kurye admin siralama-sifirla \u00a77- T\u00fcm kuryelerin seviye ve xp verilerini s\u0131f\u0131rlar."));
         return 1;
     }
 
@@ -699,6 +702,9 @@ public class CourierMod implements ModInitializer {
         src.sendMessage(Text.literal("\u00a7e/taksi admin nokta-ekle <isim> \u00a77- Taksi noktas\u0131 ekler."));
         src.sendMessage(Text.literal("\u00a7e/taksi admin nokta-sil <isim> \u00a77- Taksi noktas\u0131 siler."));
         src.sendMessage(Text.literal("\u00a7e/taksi admin listele \u00a77- Taksi noktalar\u0131n\u0131 listeler."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin carpan [<deger>] \u00a77- Ekonomi \u00e7arpan\u0131n\u0131 g\u00f6sterir/ayarlar."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin carpan-sifirla \u00a77- Ekonomi \u00e7arpan\u0131n\u0131 varsay\u0131lana (0.1) d\u00f6nd\u00fcr\u00fcr."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin siralama-sifirla \u00a77- T\u00fcm taksicilerin seviye ve xp verilerini s\u0131f\u0131rlar."));
         return 1;
     }
 
