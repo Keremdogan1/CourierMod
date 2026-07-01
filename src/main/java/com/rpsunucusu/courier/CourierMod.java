@@ -37,7 +37,6 @@ import java.lang.reflect.Method;
 import java.util.Iterator;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.File;
@@ -131,14 +130,6 @@ public class CourierMod implements ModInitializer {
         loadData();
         logActivity("Kurye Modu yuklendi. Sunucu baslatiliyor...");
         CommandRegistrationCallback.EVENT.register(this::registerCommands);
-
-        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
-            if (!player.hasPermissionLevel(2)) {
-                player.sendMessage(Text.literal("\u00a7cBu sunucuda blok k\u0131rmak yasakt\u0131r!"), true);
-                return false;
-            }
-            return true;
-        });
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             serverRef[0] = server;
