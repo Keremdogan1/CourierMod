@@ -529,7 +529,10 @@ public class CourierMod implements ModInitializer {
                 if (pDistSq <= 500.0 * 500.0) {
                     for (LocationData mLoc : data.musteriNoktalari) {
                         if (dLoc.world.equalsIgnoreCase(mLoc.world)) {
-                            validPairs.add(new MissionPair(dLoc, mLoc));
+                            double routeDistSq = Math.pow(dLoc.x - mLoc.x, 2) + Math.pow(dLoc.z - mLoc.z, 2);
+                            if (routeDistSq <= 500.0 * 500.0) {
+                                validPairs.add(new MissionPair(dLoc, mLoc));
+                            }
                         }
                     }
                 }
@@ -673,7 +676,10 @@ public class CourierMod implements ModInitializer {
                 if (pDistSq <= 500.0 * 500.0) {
                     for (LocationData mLoc : data.taksiNoktalari) {
                         if (dLoc.world.equalsIgnoreCase(mLoc.world) && !dLoc.name.equals(mLoc.name)) {
-                            validPairs.add(new MissionPair(dLoc, mLoc));
+                            double routeDistSq = Math.pow(dLoc.x - mLoc.x, 2) + Math.pow(dLoc.z - mLoc.z, 2);
+                            if (routeDistSq <= 500.0 * 500.0) {
+                                validPairs.add(new MissionPair(dLoc, mLoc));
+                            }
                         }
                     }
                 }
