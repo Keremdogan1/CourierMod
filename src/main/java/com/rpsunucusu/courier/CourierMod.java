@@ -672,7 +672,15 @@ public class CourierMod implements ModInitializer {
         }
 
         activeMissions.put(p.getUuid(), pm);
-        p.sendMessage(Text.literal(P + "\u00a7aTaksi g\u00f6revi al\u0131nd\u0131! \u00a7eYolcu \u015fuarada bekliyor: \u00a7b" + pm.dagitimLoc.name));
+        p.sendMessage(Text.literal(P + "\u00a7aTaksi g\u00f6revi al\u0131nd\u0131!"));
+        
+        MutableText message = Text.literal(P + "\u00a7eYolcu \u015fuarada bekliyor: ");
+        MutableText nameText = Text.literal("\u00a7b" + pm.dagitimLoc.name);
+        nameText.setStyle(nameText.getStyle()
+            .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kurye wp dagitim"))
+            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("\u00a7aWaypoint olu\u015fturmak i\u00e7in t\u0131kla!"))));
+        message.append(nameText);
+        p.sendMessage(message);
         return 1;
     }
 
@@ -831,7 +839,14 @@ public class CourierMod implements ModInitializer {
                                 Entity v = ((ServerWorld)p.getWorld()).getEntity(pm.taxiVillagerId);
                                 if (v != null) v.discard();
                             }
-                            p.sendMessage(Text.literal(P + "\u00a7aMusteri araca bindi! \u00a7eHedef: \u00a7b" + pm.musteriLoc.name));
+                            
+                            MutableText message = Text.literal(P + "\u00a7aM\u00fc\u015fteri araca bindi! \u00a7eHedef: ");
+                            MutableText nameText = Text.literal("\u00a7b" + pm.musteriLoc.name);
+                            nameText.setStyle(nameText.getStyle()
+                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kurye wp musteri"))
+                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("\u00a7aWaypoint olu\u015fturmak i\u00e7in t\u0131kla!"))));
+                            message.append(nameText);
+                            p.sendMessage(message);
                         }
                     }
                 } else if (pm.state.equals("TESLIMAT")) {
