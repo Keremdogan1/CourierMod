@@ -87,8 +87,7 @@ public class CourierMod implements ModInitializer {
     public static class DataModel {
         public List<LocationData> dagitimNoktalari = new ArrayList<>();
         public List<LocationData> musteriNoktalari = new ArrayList<>();
-        public List<LocationData> taksiDurakNoktalari = new ArrayList<>();
-        public List<LocationData> taksiHedefNoktalari = new ArrayList<>();
+        public List<LocationData> taksiNoktalari = new ArrayList<>();
     }
 
     public static class PlayerMission {
@@ -301,10 +300,8 @@ public class CourierMod implements ModInitializer {
             .then(CommandManager.literal("admin")
                 .requires(source -> source.hasPermissionLevel(2))
                 .executes(this::taksiAdminHelpCommand)
-                .then(CommandManager.literal("durak-ekle").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::addTaksiDurak)))
-                .then(CommandManager.literal("hedef-ekle").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::addTaksiHedef)))
-                .then(CommandManager.literal("durak-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteTaksiDurak)))
-                .then(CommandManager.literal("hedef-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteTaksiHedef)))
+                .then(CommandManager.literal("nokta-ekle").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::addTaksiNokta)))
+                .then(CommandManager.literal("nokta-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteTaksiNokta)))
                 .then(CommandManager.literal("listele").executes(this::listTaksiPoints))
             )
         );
@@ -585,55 +582,30 @@ public class CourierMod implements ModInitializer {
     private int taksiAdminHelpCommand(CommandContext<ServerCommandSource> context) {
         ServerCommandSource src = context.getSource();
         src.sendMessage(Text.literal("\u00a7m---------\u00a7r " + AP + " \u00a7m---------"));
-        src.sendMessage(Text.literal("\u00a7e/taksi admin durak-ekle <isim> \u00a77- Taksi duragi ekler."));
-        src.sendMessage(Text.literal("\u00a7e/taksi admin hedef-ekle <isim> \u00a77- Taksi hedefi ekler."));
-        src.sendMessage(Text.literal("\u00a7e/taksi admin durak-sil <isim> \u00a77- Taksi duragi siler."));
-        src.sendMessage(Text.literal("\u00a7e/taksi admin hedef-sil <isim> \u00a77- Taksi hedefi siler."));
-        src.sendMessage(Text.literal("\u00a7e/taksi admin listele \u00a77- Taksi noktalarini listeler."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin nokta-ekle <isim> \u00a77- Taksi noktas\u0131 ekler."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin nokta-sil <isim> \u00a77- Taksi noktas\u0131 siler."));
+        src.sendMessage(Text.literal("\u00a7e/taksi admin listele \u00a77- Taksi noktalar\u0131n\u0131 listeler."));
         return 1;
     }
 
-    private int addTaksiDurak(CommandContext<ServerCommandSource> context) {
+    private int addTaksiNokta(CommandContext<ServerCommandSource> context) {
         String isim = StringArgumentType.getString(context, "isim");
         if (context.getSource().getPlayer() == null) return 0;
         ServerPlayerEntity p = context.getSource().getPlayer();
         BlockPos pos = p.getBlockPos();
-        data.taksiDurakNoktalari.add(new LocationData(isim, pos.getX(), pos.getY(), pos.getZ(), p.getWorld().getRegistryKey().getValue().toString()));
+        data.taksiNoktalari.add(new LocationData(isim, pos.getX(), pos.getY(), pos.getZ(), p.getWorld().getRegistryKey().getValue().toString()));
         saveData();
-        p.sendMessage(Text.literal(AP + "\u00a7aTaksi duragi eklendi: \u00a7e" + isim));
+        p.sendMessage(Text.literal(AP + "\u00a7aTaksi noktas\u0131 eklendi: \u00a7e" + isim));
         return 1;
     }
 
-    private int addTaksiHedef(CommandContext<ServerCommandSource> context) {
-        String isim = StringArgumentType.getString(context, "isim");
-        if (context.getSource().getPlayer() == null) return 0;
-        ServerPlayerEntity p = context.getSource().getPlayer();
-        BlockPos pos = p.getBlockPos();
-        data.taksiHedefNoktalari.add(new LocationData(isim, pos.getX(), pos.getY(), pos.getZ(), p.getWorld().getRegistryKey().getValue().toString()));
-        saveData();
-        p.sendMessage(Text.literal(AP + "\u00a7aTaksi hedefi eklendi: \u00a7e" + isim));
-        return 1;
-    }
-
-    private int deleteTaksiDurak(CommandContext<ServerCommandSource> context) {
+    private int deleteTaksiNokta(CommandContext<ServerCommandSource> context) {
         String isim = StringArgumentType.getString(context, "isim");
         LocationData found = null;
-        for (LocationData loc : data.taksiDurakNoktalari) { if (loc.name.equalsIgnoreCase(isim)) found = loc; }
+        for (LocationData loc : data.taksiNoktalari) { if (loc.name.equalsIgnoreCase(isim)) found = loc; }
         if (found != null) {
-            data.taksiDurakNoktalari.remove(found); saveData();
-            context.getSource().sendMessage(Text.literal(AP + "\u00a7aTaksi duragi silindi."));
-            return 1;
-        }
-        return 0;
-    }
-
-    private int deleteTaksiHedef(CommandContext<ServerCommandSource> context) {
-        String isim = StringArgumentType.getString(context, "isim");
-        LocationData found = null;
-        for (LocationData loc : data.taksiHedefNoktalari) { if (loc.name.equalsIgnoreCase(isim)) found = loc; }
-        if (found != null) {
-            data.taksiHedefNoktalari.remove(found); saveData();
-            context.getSource().sendMessage(Text.literal(AP + "\u00a7aTaksi hedefi silindi."));
+            data.taksiNoktalari.remove(found); saveData();
+            context.getSource().sendMessage(Text.literal(AP + "\u00a7aTaksi noktas\u0131 silindi."));
             return 1;
         }
         return 0;
@@ -641,10 +613,8 @@ public class CourierMod implements ModInitializer {
 
     private int listTaksiPoints(CommandContext<ServerCommandSource> context) {
         ServerCommandSource src = context.getSource();
-        src.sendMessage(Text.literal(AP + "\u00a7e--- Taksi Duraklari ---"));
-        for (LocationData l : data.taksiDurakNoktalari) src.sendMessage(Text.literal("\u00a77- \u00a7f" + l.name));
-        src.sendMessage(Text.literal(AP + "\u00a7e--- Taksi Hedefleri ---"));
-        for (LocationData l : data.taksiHedefNoktalari) src.sendMessage(Text.literal("\u00a77- \u00a7f" + l.name));
+        src.sendMessage(Text.literal(AP + "\u00a7e--- Taksi Noktalar\u0131 ---"));
+        for (LocationData l : data.taksiNoktalari) src.sendMessage(Text.literal("\u00a77- \u00a7f" + l.name));
         return 1;
     }
 
@@ -652,22 +622,22 @@ public class CourierMod implements ModInitializer {
         ServerPlayerEntity p = context.getSource().getPlayer();
         if (p == null) return 0;
         if (activeMissions.containsKey(p.getUuid())) {
-            p.sendMessage(Text.literal(P + "\u00a7cZaten aktif bir gorevin var (Kurye veya Taksi)!"));
+            p.sendMessage(Text.literal(P + "\u00a7cZaten aktif bir g\u00f6revin var (Kurye veya Taksi)!"));
             return 0;
         }
-        if (data.taksiDurakNoktalari.isEmpty() || data.taksiHedefNoktalari.isEmpty()) {
-            p.sendMessage(Text.literal(P + "\u00a7cTaksi noktalari eksik!"));
+        if (data.taksiNoktalari.size() < 2) {
+            p.sendMessage(Text.literal(P + "\u00a7cTaksi sistemi i\u00e7in en az 2 nokta eklenmi\u015f olmal\u0131d\u0131r!"));
             return 0;
         }
         
         List<MissionPair> validPairs = new ArrayList<>();
         BlockPos pPos = p.getBlockPos();
-        for (LocationData dLoc : data.taksiDurakNoktalari) {
+        for (LocationData dLoc : data.taksiNoktalari) {
             if (dLoc.world != null && dLoc.world.equalsIgnoreCase(p.getWorld().getRegistryKey().getValue().toString())) {
                 double pDistSq = Math.pow(dLoc.x - pPos.getX(), 2) + Math.pow(dLoc.z - pPos.getZ(), 2);
                 if (pDistSq <= 500.0 * 500.0) {
-                    for (LocationData mLoc : data.taksiHedefNoktalari) {
-                        if (dLoc.world.equalsIgnoreCase(mLoc.world)) {
+                    for (LocationData mLoc : data.taksiNoktalari) {
+                        if (dLoc.world.equalsIgnoreCase(mLoc.world) && !dLoc.name.equals(mLoc.name)) {
                             validPairs.add(new MissionPair(dLoc, mLoc));
                         }
                     }
@@ -676,7 +646,7 @@ public class CourierMod implements ModInitializer {
         }
 
         if (validPairs.isEmpty()) {
-            p.sendMessage(Text.literal(P + "\u00a7c500 metre mesafe dahilinde uygun taksi duragi bulunamadi!"));
+            p.sendMessage(Text.literal(P + "\u00a7c500 metre mesafe dahilinde uygun taksi ba\u015flang\u0131\u00e7 noktas\u0131 bulunamad\u0131!"));
             return 0;
         }
 
@@ -694,7 +664,7 @@ public class CourierMod implements ModInitializer {
                 villager.refreshPositionAndAngles(pm.dagitimLoc.x + 0.5, pm.dagitimLoc.y, pm.dagitimLoc.z + 0.5, 0, 0);
                 villager.setAiDisabled(true);
                 villager.setInvulnerable(true);
-                villager.setCustomName(Text.literal("\u00a7eTaksi Musterisi"));
+                villager.setCustomName(Text.literal("\u00a7eTaksi M\u00fc\u015fterisi"));
                 villager.setCustomNameVisible(true);
                 world.spawnEntity(villager);
                 pm.taxiVillagerId = villager.getUuid();
@@ -702,7 +672,7 @@ public class CourierMod implements ModInitializer {
         }
 
         activeMissions.put(p.getUuid(), pm);
-        p.sendMessage(Text.literal(P + "\u00a7aTaksi gorevi alindi! \u00a7eDurak: \u00a7b" + pm.dagitimLoc.name));
+        p.sendMessage(Text.literal(P + "\u00a7aTaksi g\u00f6revi al\u0131nd\u0131! \u00a7eYolcu \u015fuarada bekliyor: \u00a7b" + pm.dagitimLoc.name));
         return 1;
     }
 

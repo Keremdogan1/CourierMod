@@ -9,42 +9,30 @@ import java.util.UUID;
 public class TabPlaceholderRegistry {
     public static void register(MinecraftServer[] serverRef, Map<UUID, CourierMod.PlayerMission> activeMissions, java.util.function.BiFunction<MinecraftServer, ServerPlayerEntity, Integer> getParaFunc) {
         try {
-            // Register player placeholders for kurye_aktif
-            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%kurye_aktif%", 500, tabPlayer -> {
-                UUID uuid = tabPlayer.getUniqueId();
-                return activeMissions.containsKey(uuid) ? "1" : "0";
-            });
-            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%objective:kurye_aktif%", 500, tabPlayer -> {
-                UUID uuid = tabPlayer.getUniqueId();
-                return activeMissions.containsKey(uuid) ? "1" : "0";
+            // Register placeholder for baslik
+            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%gorev_baslik%", 500, tabPlayer -> {
+                CourierMod.PlayerMission pm = activeMissions.get(tabPlayer.getUniqueId());
+                if (pm == null) return "&7/kurye al &8- görev al";
+                return pm.type.equals("TAKSI") ? "&e🚕 Taksi Görevi" : "&a📦 Kurye Görevi";
             });
 
-            // Register player placeholders for kurye_hedef
-            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%kurye_hedef%", 500, tabPlayer -> {
-                UUID uuid = tabPlayer.getUniqueId();
-                CourierMod.PlayerMission pm = activeMissions.get(uuid);
-                if (pm == null) return "";
-                return pm.state.equals("TOPLAMA") ? pm.dagitimLoc.name : pm.musteriLoc.name;
-            });
-            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%objective:kurye_hedef%", 500, tabPlayer -> {
-                UUID uuid = tabPlayer.getUniqueId();
-                CourierMod.PlayerMission pm = activeMissions.get(uuid);
-                if (pm == null) return "";
-                return pm.state.equals("TOPLAMA") ? pm.dagitimLoc.name : pm.musteriLoc.name;
+            // Register placeholder for durum
+            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%gorev_durum%", 500, tabPlayer -> {
+                CourierMod.PlayerMission pm = activeMissions.get(tabPlayer.getUniqueId());
+                if (pm == null) return "&7/taksi al &8- görev al";
+                if (pm.type.equals("TAKSI")) {
+                    return pm.state.equals("TOPLAMA") ? "  &eYolcuyu Al" : "  &eHedefe Götür";
+                } else {
+                    return pm.state.equals("TOPLAMA") ? "  &ePaketi Al" : "  &eTeslim Et";
+                }
             });
 
-            // Register player placeholders for kurye_durum
-            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%kurye_durum%", 500, tabPlayer -> {
-                UUID uuid = tabPlayer.getUniqueId();
-                CourierMod.PlayerMission pm = activeMissions.get(uuid);
+            // Register placeholder for hedef
+            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%gorev_hedef%", 500, tabPlayer -> {
+                CourierMod.PlayerMission pm = activeMissions.get(tabPlayer.getUniqueId());
                 if (pm == null) return "";
-                return pm.state.equals("TOPLAMA") ? "Paketi Al" : "Teslim Et";
-            });
-            TabAPI.getInstance().getPlaceholderManager().registerPlayerPlaceholder("%objective:kurye_durum%", 500, tabPlayer -> {
-                UUID uuid = tabPlayer.getUniqueId();
-                CourierMod.PlayerMission pm = activeMissions.get(uuid);
-                if (pm == null) return "";
-                return pm.state.equals("TOPLAMA") ? "Paketi Al" : "Teslim Et";
+                String hedef = pm.state.equals("TOPLAMA") ? pm.dagitimLoc.name : pm.musteriLoc.name;
+                return "  &b➤ &f" + hedef;
             });
 
             // Register player placeholders for para
