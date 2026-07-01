@@ -906,7 +906,7 @@ public class CourierMod implements ModInitializer {
                                 long completionElapsedMillis = System.currentTimeMillis() - pm.missionStartTime;
                                 double completionElapsedSeconds = completionElapsedMillis / 1000.0;
                                 if (completionElapsedSeconds < 1) completionElapsedSeconds = 1;
-                                double speedFactor = (totalDist / completionElapsedSeconds) / 10.0;
+                                double speedFactor = (totalDist / completionElapsedSeconds) / 5.0;
                                 if (speedFactor < 0.5) speedFactor = 0.5;
                                 if (speedFactor > 2.0) speedFactor = 2.0;
                                 double gainedXp = (totalDist * 0.5) * speedFactor;
@@ -996,7 +996,7 @@ public class CourierMod implements ModInitializer {
                         long completionElapsedMillis = System.currentTimeMillis() - pm.missionStartTime;
                         double completionElapsedSeconds = completionElapsedMillis / 1000.0;
                         if (completionElapsedSeconds < 1) completionElapsedSeconds = 1;
-                        double speedFactor = (totalDist / completionElapsedSeconds) / 10.0;
+                        double speedFactor = (totalDist / completionElapsedSeconds) / 5.0;
                         if (speedFactor < 0.5) speedFactor = 0.5;
                         if (speedFactor > 2.0) speedFactor = 2.0;
                         double gainedXp = (totalDist * 0.5) * speedFactor;
