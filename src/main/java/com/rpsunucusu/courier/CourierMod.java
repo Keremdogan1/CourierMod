@@ -5,6 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -60,7 +63,6 @@ public class CourierMod implements ModInitializer {
 
     private static final String P = "\u00a76[Kurye] ";
     private static final String AP = "\u00a76[Kurye-Admin] ";
-    private static final double UCRET_METRE_BASI = 0.1;
     private static final double MIN_UCRET = 5.0;
 
     private static final File DATA_FILE = new File("config/kurye_data.json");
@@ -97,6 +99,8 @@ public class CourierMod implements ModInitializer {
         public List<LocationData> taksiNoktalari = new ArrayList<>();
         public List<String> ipucuKapatanlar = new ArrayList<>();
         public Map<String, PlayerStats> playerStats = new HashMap<>();
+        public double kuryeCarpan = 0.1;
+        public double taksiCarpan = 0.1;
     }
 
     public static class PlayerMission {
@@ -307,7 +311,14 @@ public class CourierMod implements ModInitializer {
                 .then(CommandManager.literal("dagitim-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteDagitim)))
                 .then(CommandManager.literal("musteri-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteMusteri)))
                 .then(CommandManager.literal("listele").executes(this::listPoints))
+                .then(CommandManager.literal("carpan")
+                    .executes(this::showKuryeCarpan)
+                    .then(CommandManager.argument("deger", DoubleArgumentType.doubleArg(0.01, 100.0)).executes(this::setKuryeCarpan))
+                )
+                .then(CommandManager.literal("carpan-sifirla").executes(this::resetKuryeCarpan))
+                .then(CommandManager.literal("siralama-sifirla").executes(this::resetKuryeSiralama))
             )
+            .then(CommandManager.literal("siralama").executes(this::showKuryeSiralama))
         );
 
         dispatcher.register(CommandManager.literal("taksi")
@@ -321,7 +332,14 @@ public class CourierMod implements ModInitializer {
                 .then(CommandManager.literal("nokta-ekle").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::addTaksiNokta)))
                 .then(CommandManager.literal("nokta-sil").then(CommandManager.argument("isim", StringArgumentType.string()).executes(this::deleteTaksiNokta)))
                 .then(CommandManager.literal("listele").executes(this::listTaksiPoints))
+                .then(CommandManager.literal("carpan")
+                    .executes(this::showTaksiCarpan)
+                    .then(CommandManager.argument("deger", DoubleArgumentType.doubleArg(0.01, 100.0)).executes(this::setTaksiCarpan))
+                )
+                .then(CommandManager.literal("carpan-sifirla").executes(this::resetTaksiCarpan))
+                .then(CommandManager.literal("siralama-sifirla").executes(this::resetTaksiSiralama))
             )
+            .then(CommandManager.literal("siralama").executes(this::showTaksiSiralama))
         );
     }
 
@@ -375,6 +393,62 @@ public class CourierMod implements ModInitializer {
         src.sendMessage(Text.literal("\u00a7e/kurye admin dagitim-sil <isim> \u00a77- Da\u011f\u0131t\u0131m noktas\u0131 siler."));
         src.sendMessage(Text.literal("\u00a7e/kurye admin musteri-sil <isim> \u00a77- M\u00fc\u015fteri noktas\u0131 siler."));
         src.sendMessage(Text.literal("\u00a7e/kurye admin listele \u00a77- T\u00fcm noktalar\u0131 listeler."));
+        return 1;
+    }
+
+    private int showKuryeCarpan(CommandContext<ServerCommandSource> context) {
+        context.getSource().sendMessage(Text.literal(AP + "\u00a7eKurye \u00e7arpan\u0131 \u015fu an: \u00a7a" + data.kuryeCarpan + " \u00a77(Metre ba\u015f\u0131 kazan\u00e7)"));
+        return 1;
+    }
+    private int setKuryeCarpan(CommandContext<ServerCommandSource> context) {
+        double d = DoubleArgumentType.getDouble(context, "deger");
+        data.kuryeCarpan = d;
+        saveData();
+        context.getSource().sendMessage(Text.literal(AP + "\u00a7aKurye \u00e7arpan\u0131 ba\u015far\u0131yla g\u00fcncellendi: \u00a7e" + d));
+        logActivity(context.getSource().getName() + " kurye carpanini " + d + " yapti.");
+        return 1;
+    }
+    private int resetKuryeCarpan(CommandContext<ServerCommandSource> context) {
+        data.kuryeCarpan = 0.1;
+        saveData();
+        context.getSource().sendMessage(Text.literal(AP + "\u00a7aKurye \u00e7arpan\u0131 s\u0131f\u0131rland\u0131 (\u00a7e0.1\u00a7a)."));
+        return 1;
+    }
+    private int showKuryeSiralama(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource src = context.getSource();
+        src.sendMessage(Text.literal("\u00a76\u00a7m--------\u00a7r \u00a7e\u2b50 Kurye S\u0131ralamas\u0131 \u2b50 \u00a76\u00a7m--------"));
+        List<Map.Entry<String, PlayerStats>> sorted = data.playerStats.entrySet().stream()
+            .sorted(Map.Entry.<String, PlayerStats>comparingByValue(Comparator.comparingInt((PlayerStats s) -> s.kuryeLevel).reversed()
+            .thenComparingDouble(s -> -s.kuryeXp)))
+            .collect(Collectors.toList());
+        int rank = 1;
+        String myUuid = src.getPlayer() != null ? src.getPlayer().getUuidAsString() : "";
+        for (int i = 0; i < Math.min(10, sorted.size()); i++) {
+            Map.Entry<String, PlayerStats> entry = sorted.get(i);
+            PlayerStats stats = entry.getValue();
+            if (stats.kuryeLevel <= 1 && stats.kuryeXp == 0) continue;
+            
+            String playerName = "Bilinmiyor";
+            ServerPlayerEntity target = src.getServer().getPlayerManager().getPlayer(UUID.fromString(entry.getKey()));
+            if (target != null) {
+                playerName = target.getGameProfile().getName();
+            } else {
+                playerName = "Oyuncu (" + entry.getKey().substring(0, 5) + ")";
+            }
+            String prefix = (entry.getKey().equals(myUuid)) ? "\u00a7a" : "\u00a7e";
+            src.sendMessage(Text.literal("\u00a76" + rank + ". " + prefix + playerName + " \u00a77- Seviye: \u00a7b" + stats.kuryeLevel + " \u00a77(XP: " + (int)stats.kuryeXp + ")"));
+            rank++;
+        }
+        return 1;
+    }
+    private int resetKuryeSiralama(CommandContext<ServerCommandSource> context) {
+        for (PlayerStats stats : data.playerStats.values()) {
+            stats.kuryeLevel = 1;
+            stats.kuryeXp = 0;
+        }
+        saveData();
+        context.getSource().sendMessage(Text.literal(AP + "\u00a7cT\u00fcm kurye s\u0131ralamas\u0131 s\u0131f\u0131rland\u0131!"));
+        logActivity(context.getSource().getName() + " kurye siralamasini sifirladi.");
         return 1;
     }
 
@@ -623,6 +697,62 @@ public class CourierMod implements ModInitializer {
         src.sendMessage(Text.literal("\u00a7e/taksi admin nokta-ekle <isim> \u00a77- Taksi noktas\u0131 ekler."));
         src.sendMessage(Text.literal("\u00a7e/taksi admin nokta-sil <isim> \u00a77- Taksi noktas\u0131 siler."));
         src.sendMessage(Text.literal("\u00a7e/taksi admin listele \u00a77- Taksi noktalar\u0131n\u0131 listeler."));
+        return 1;
+    }
+
+    private int showTaksiCarpan(CommandContext<ServerCommandSource> context) {
+        context.getSource().sendMessage(Text.literal(AP + "\u00a7eTaksi \u00e7arpan\u0131 \u015fu an: \u00a7a" + data.taksiCarpan + " \u00a77(Metre ba\u015f\u0131 kazan\u00e7)"));
+        return 1;
+    }
+    private int setTaksiCarpan(CommandContext<ServerCommandSource> context) {
+        double d = DoubleArgumentType.getDouble(context, "deger");
+        data.taksiCarpan = d;
+        saveData();
+        context.getSource().sendMessage(Text.literal(AP + "\u00a7aTaksi \u00e7arpan\u0131 ba\u015far\u0131yla g\u00fcncellendi: \u00a7e" + d));
+        logActivity(context.getSource().getName() + " taksi carpanini " + d + " yapti.");
+        return 1;
+    }
+    private int resetTaksiCarpan(CommandContext<ServerCommandSource> context) {
+        data.taksiCarpan = 0.1;
+        saveData();
+        context.getSource().sendMessage(Text.literal(AP + "\u00a7aTaksi \u00e7arpan\u0131 s\u0131f\u0131rland\u0131 (\u00a7e0.1\u00a7a)."));
+        return 1;
+    }
+    private int showTaksiSiralama(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource src = context.getSource();
+        src.sendMessage(Text.literal("\u00a76\u00a7m--------\u00a7r \u00a7e\u2b50 Taksi S\u0131ralamas\u0131 \u2b50 \u00a76\u00a7m--------"));
+        List<Map.Entry<String, PlayerStats>> sorted = data.playerStats.entrySet().stream()
+            .sorted(Map.Entry.<String, PlayerStats>comparingByValue(Comparator.comparingInt((PlayerStats s) -> s.taksiLevel).reversed()
+            .thenComparingDouble(s -> -s.taksiXp)))
+            .collect(Collectors.toList());
+        int rank = 1;
+        String myUuid = src.getPlayer() != null ? src.getPlayer().getUuidAsString() : "";
+        for (int i = 0; i < Math.min(10, sorted.size()); i++) {
+            Map.Entry<String, PlayerStats> entry = sorted.get(i);
+            PlayerStats stats = entry.getValue();
+            if (stats.taksiLevel <= 1 && stats.taksiXp == 0) continue;
+            
+            String playerName = "Bilinmiyor";
+            ServerPlayerEntity target = src.getServer().getPlayerManager().getPlayer(UUID.fromString(entry.getKey()));
+            if (target != null) {
+                playerName = target.getGameProfile().getName();
+            } else {
+                playerName = "Oyuncu (" + entry.getKey().substring(0, 5) + ")";
+            }
+            String prefix = (entry.getKey().equals(myUuid)) ? "\u00a7a" : "\u00a7e";
+            src.sendMessage(Text.literal("\u00a76" + rank + ". " + prefix + playerName + " \u00a77- Seviye: \u00a7b" + stats.taksiLevel + " \u00a77(XP: " + (int)stats.taksiXp + ")"));
+            rank++;
+        }
+        return 1;
+    }
+    private int resetTaksiSiralama(CommandContext<ServerCommandSource> context) {
+        for (PlayerStats stats : data.playerStats.values()) {
+            stats.taksiLevel = 1;
+            stats.taksiXp = 0;
+        }
+        saveData();
+        context.getSource().sendMessage(Text.literal(AP + "\u00a7cT\u00fcm taksi s\u0131ralamas\u0131 s\u0131f\u0131rland\u0131!"));
+        logActivity(context.getSource().getName() + " taksi siralamasini sifirladi.");
         return 1;
     }
 
@@ -902,7 +1032,7 @@ public class CourierMod implements ModInitializer {
                             }
                             if (hasItem) {
                                 double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
-                                double ucret = Math.floor(totalDist * UCRET_METRE_BASI);
+                                double ucret = Math.floor(totalDist * data.kuryeCarpan);
                                 if (ucret < MIN_UCRET) ucret = MIN_UCRET;
                                 addPlayerPara(server, p, (int) ucret);
                                 p.sendMessage(Text.literal(P + "\u00a7bTeslimat ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
@@ -993,7 +1123,7 @@ public class CourierMod implements ModInitializer {
                             if (v != null) v.discard();
                         }
                         double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
-                        double ucret = Math.floor(totalDist * UCRET_METRE_BASI);
+                        double ucret = Math.floor(totalDist * data.taksiCarpan);
                         if (ucret < MIN_UCRET) ucret = MIN_UCRET;
                         addPlayerPara(server, p, (int) ucret);
                         p.sendMessage(Text.literal(P + "\u00a7bTaksi g\u00f6revi ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
