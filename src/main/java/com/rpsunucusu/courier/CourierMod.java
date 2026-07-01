@@ -437,7 +437,12 @@ public class CourierMod implements ModInitializer {
             if (target != null) {
                 playerName = target.getGameProfile().getName();
             } else {
-                playerName = "Oyuncu (" + entry.getKey().substring(0, 5) + ")";
+                java.util.Optional<com.mojang.authlib.GameProfile> profile = src.getServer().getUserCache().getByUuid(UUID.fromString(entry.getKey()));
+                if (profile.isPresent()) {
+                    playerName = profile.get().getName();
+                } else {
+                    playerName = "Oyuncu (" + entry.getKey().substring(0, 5) + ")";
+                }
             }
             String prefix = (entry.getKey().equals(myUuid)) ? "\u00a7a" : "\u00a7e";
             src.sendMessage(Text.literal("\u00a76" + rank + ". " + prefix + playerName + " \u00a77- Seviye: \u00a7b" + stats.kuryeLevel + " \u00a77(XP: " + (int)stats.kuryeXp + ")"));
@@ -745,7 +750,12 @@ public class CourierMod implements ModInitializer {
             if (target != null) {
                 playerName = target.getGameProfile().getName();
             } else {
-                playerName = "Oyuncu (" + entry.getKey().substring(0, 5) + ")";
+                java.util.Optional<com.mojang.authlib.GameProfile> profile = src.getServer().getUserCache().getByUuid(UUID.fromString(entry.getKey()));
+                if (profile.isPresent()) {
+                    playerName = profile.get().getName();
+                } else {
+                    playerName = "Oyuncu (" + entry.getKey().substring(0, 5) + ")";
+                }
             }
             String prefix = (entry.getKey().equals(myUuid)) ? "\u00a7a" : "\u00a7e";
             src.sendMessage(Text.literal("\u00a76" + rank + ". " + prefix + playerName + " \u00a77- Seviye: \u00a7b" + stats.taksiLevel + " \u00a77(XP: " + (int)stats.taksiXp + ")"));
