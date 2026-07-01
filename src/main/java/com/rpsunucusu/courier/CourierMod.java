@@ -37,6 +37,7 @@ import java.lang.reflect.Method;
 import java.util.Iterator;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.File;
@@ -88,6 +89,7 @@ public class CourierMod implements ModInitializer {
         public List<LocationData> dagitimNoktalari = new ArrayList<>();
         public List<LocationData> musteriNoktalari = new ArrayList<>();
         public List<LocationData> taksiNoktalari = new ArrayList<>();
+        public List<String> ipucuKapatanlar = new ArrayList<>();
     }
 
     public static class PlayerMission {
@@ -98,6 +100,12 @@ public class CourierMod implements ModInitializer {
         public UUID taxiVillagerId = null;
         public int ticksAtTarget = 0;
     }
+
+    private static final String[] TIPS = {
+        "\u00a76\u00a7l\u0130pucu: \u00a7eYolunu bulam\u0131yor musun? Sohbetteki \u00a7bKonum \u00a7eyaz\u0131s\u0131na t\u0131klayarak \u00a7bWaypoint \u00a7eolu\u015fturabilirsin!",
+        "\u00a76\u00a7l\u0130pucu: \u00a7eMesafeye g\u00f6re kazan\u00e7 sa\u011flars\u0131n. Her \u00a7b10 metrede \u00a7e1\u20ba \u00a7ekazan\u0131rs\u0131n!",
+        "\u00a76\u00a7l\u0130pucu: \u00a7eBu ipu\u00e7lar\u0131n\u0131 kapatmak i\u00e7in \u00a7b/kurye ipucu \u00a7eyazabilirsin."
+    };
 
     public static class MissionPair {
         public LocationData dagitim;
@@ -123,6 +131,14 @@ public class CourierMod implements ModInitializer {
         loadData();
         logActivity("Kurye Modu yuklendi. Sunucu baslatiliyor...");
         CommandRegistrationCallback.EVENT.register(this::registerCommands);
+
+        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
+            if (!player.hasPermissionLevel(2)) {
+                player.sendMessage(Text.literal("\u00a7cBu sunucuda blok k\u0131rmak yasakt\u0131r!"), true);
+                return false;
+            }
+            return true;
+        });
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             serverRef[0] = server;
@@ -276,6 +292,7 @@ public class CourierMod implements ModInitializer {
             .executes(this::helpCommand)
             .then(CommandManager.literal("al").executes(this::takeMission))
             .then(CommandManager.literal("iptal").executes(this::cancelMission))
+            .then(CommandManager.literal("ipucu").executes(this::toggleIpucu))
             .then(CommandManager.literal("log")
                 .requires(source -> source.hasPermissionLevel(2))
                 .executes(this::showLog))
@@ -297,6 +314,7 @@ public class CourierMod implements ModInitializer {
             .executes(this::taksiHelpCommand)
             .then(CommandManager.literal("al").executes(this::takeTaksiMission))
             .then(CommandManager.literal("iptal").executes(this::cancelMission))
+            .then(CommandManager.literal("ipucu").executes(this::toggleIpucu))
             .then(CommandManager.literal("admin")
                 .requires(source -> source.hasPermissionLevel(2))
                 .executes(this::taksiAdminHelpCommand)
@@ -311,6 +329,7 @@ public class CourierMod implements ModInitializer {
         ServerCommandSource src = context.getSource();
         src.sendMessage(Text.literal(P + "\u00a7e/kurye al \u00a77- Yeni bir teslimat g\u00f6revi al\u0131r."));
         src.sendMessage(Text.literal(P + "\u00a7e/kurye iptal \u00a77- Mevcut g\u00f6revi iptal eder."));
+        src.sendMessage(Text.literal(P + "\u00a7e/kurye ipucu \u00a77- \u0130pu\u00e7lar\u0131n\u0131 a\u00e7ar/kapat\u0131r."));
         if (src.hasPermissionLevel(2)) {
             src.sendMessage(Text.literal(P + "\u00a7c/kurye log \u00a77- Aktivite loglarini listeler ve kaydeder."));
             src.sendMessage(Text.literal(P + "\u00a7c/kurye admin \u00a77- Admin yardim menusu."));
@@ -576,6 +595,22 @@ public class CourierMod implements ModInitializer {
         ServerCommandSource src = context.getSource();
         src.sendMessage(Text.literal(P + "\u00a7e/taksi al \u00a77- Yeni bir taksi g\u00f6revi al\u0131r."));
         src.sendMessage(Text.literal(P + "\u00a7e/taksi iptal \u00a77- Mevcut g\u00f6revi iptal eder."));
+        src.sendMessage(Text.literal(P + "\u00a7e/taksi ipucu \u00a77- \u0130pu\u00e7lar\u0131n\u0131 a\u00e7ar/kapat\u0131r."));
+        return 1;
+    }
+
+    private int toggleIpucu(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity p = context.getSource().getPlayer();
+        if (p == null) return 0;
+        String uuid = p.getUuidAsString();
+        if (data.ipucuKapatanlar.contains(uuid)) {
+            data.ipucuKapatanlar.remove(uuid);
+            p.sendMessage(Text.literal(P + "\u00a7a\u0130pu\u00e7lar\u0131 a\u00e7\u0131ld\u0131."));
+        } else {
+            data.ipucuKapatanlar.add(uuid);
+            p.sendMessage(Text.literal(P + "\u00a7c\u0130pu\u00e7lar\u0131 kapat\u0131ld\u0131."));
+        }
+        saveData();
         return 1;
     }
 
@@ -766,8 +801,9 @@ public class CourierMod implements ModInitializer {
             PlayerMission pm = activeMissions.get(p.getUuid());
             if (pm == null) continue;
             
-            if (tipCounter % 15 == 0) {
-                p.sendMessage(Text.literal("\u00a76\u00a7l\u0130pucu: \u00a7eYolunu bulam\u0131yor musun? Sohbetteki \u00a7bKonum \u00a7eyaz\u0131s\u0131na t\u0131klayarak \u00a7bWaypoint \u00a7eolu\u015fturabilirsin!"), true);
+            if (tipCounter % 15 == 0 && !data.ipucuKapatanlar.contains(p.getUuidAsString())) {
+                String tip = TIPS[(tipCounter / 15) % TIPS.length];
+                p.sendMessage(Text.literal(tip), true);
             }
 
             BlockPos pPos = p.getBlockPos();
