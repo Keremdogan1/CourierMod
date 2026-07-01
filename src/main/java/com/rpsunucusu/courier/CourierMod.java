@@ -309,8 +309,8 @@ public class CourierMod implements ModInitializer {
 
     private int helpCommand(CommandContext<ServerCommandSource> context) {
         ServerCommandSource src = context.getSource();
-        src.sendMessage(Text.literal(P + "\u00a7e/kurye al \u00a77- Yeni bir teslimat gorevi alir."));
-        src.sendMessage(Text.literal(P + "\u00a7e/kurye iptal \u00a77- Mevcut gorevi iptal eder."));
+        src.sendMessage(Text.literal(P + "\u00a7e/kurye al \u00a77- Yeni bir teslimat g\u00f6revi al\u0131r."));
+        src.sendMessage(Text.literal(P + "\u00a7e/kurye iptal \u00a77- Mevcut g\u00f6revi iptal eder."));
         if (src.hasPermissionLevel(2)) {
             src.sendMessage(Text.literal(P + "\u00a7c/kurye log \u00a77- Aktivite loglarini listeler ve kaydeder."));
             src.sendMessage(Text.literal(P + "\u00a7c/kurye admin \u00a77- Admin yardim menusu."));
@@ -574,8 +574,8 @@ public class CourierMod implements ModInitializer {
     // === TAKSI COMMANDS ===
     private int taksiHelpCommand(CommandContext<ServerCommandSource> context) {
         ServerCommandSource src = context.getSource();
-        src.sendMessage(Text.literal(P + "\u00a7e/taksi al \u00a77- Yeni bir taksi gorevi alir."));
-        src.sendMessage(Text.literal(P + "\u00a7e/taksi iptal \u00a77- Mevcut gorevi iptal eder."));
+        src.sendMessage(Text.literal(P + "\u00a7e/taksi al \u00a77- Yeni bir taksi g\u00f6revi al\u0131r."));
+        src.sendMessage(Text.literal(P + "\u00a7e/taksi iptal \u00a77- Mevcut g\u00f6revi iptal eder."));
         return 1;
     }
 
@@ -688,6 +688,7 @@ public class CourierMod implements ModInitializer {
 
     private int tickCounter = 0;
     private int particleTickCounter = 0;
+    private int tipCounter = 0;
     private boolean tabPlaceholdersRegistered = false;
 
     private boolean hasEmptyHotbarSlot(ServerPlayerEntity p) {
@@ -754,6 +755,8 @@ public class CourierMod implements ModInitializer {
         tickCounter++;
         if (tickCounter < 20) return;
         tickCounter = 0;
+        
+        tipCounter++;
 
         ensureParaObjective(server);
 
@@ -762,6 +765,10 @@ public class CourierMod implements ModInitializer {
             
             PlayerMission pm = activeMissions.get(p.getUuid());
             if (pm == null) continue;
+            
+            if (tipCounter % 15 == 0) {
+                p.sendMessage(Text.literal("\u00a76\u00a7l\u0130pucu: \u00a7eYolunu bulam\u0131yor musun? Sohbetteki \u00a7bKonum \u00a7eyaz\u0131s\u0131na t\u0131klayarak \u00a7bWaypoint \u00a7eolu\u015fturabilirsin!"), true);
+            }
 
             BlockPos pPos = p.getBlockPos();
             if (pm.type.equals("KURYE")) {
@@ -831,7 +838,7 @@ public class CourierMod implements ModInitializer {
                         double dist = Math.sqrt(pPos.getSquaredDistance(pm.dagitimLoc.x, pm.dagitimLoc.y, pm.dagitimLoc.z));
                         if (dist < 5.0) {
                             if (!inAutomobilityCar) {
-                                if (tickCounter % 2 == 0) p.sendMessage(Text.literal(P + "\u00a7cMusteriyi almak icin Automobility aracinda olmalisin!"), true);
+                                if (tickCounter % 2 == 0) p.sendMessage(Text.literal(P + "\u00a7cM\u00fc\u015fteriyi almak i\u00e7in Automobility arac\u0131nda olmal\u0131s\u0131n!"), true);
                                 continue;
                             }
                             pm.state = "TESLIMAT";
@@ -854,7 +861,7 @@ public class CourierMod implements ModInitializer {
                         double dist = Math.sqrt(pPos.getSquaredDistance(pm.musteriLoc.x, pm.musteriLoc.y, pm.musteriLoc.z));
                         if (dist < 5.0) {
                             if (!inAutomobilityCar) {
-                                if (tickCounter % 2 == 0) p.sendMessage(Text.literal(P + "\u00a7cMusteriyi hedefe Automobility araciyla goturmelisin!"), true);
+                                if (tickCounter % 2 == 0) p.sendMessage(Text.literal(P + "\u00a7cM\u00fc\u015fteriyi hedefe Automobility arac\u0131yla g\u00f6t\u00fcrmelisin!"), true);
                                 continue;
                             }
                             pm.state = "TAMAMLANIYOR";
@@ -866,13 +873,13 @@ public class CourierMod implements ModInitializer {
                                     villager.refreshPositionAndAngles(pm.musteriLoc.x + 0.5, pm.musteriLoc.y, pm.musteriLoc.z + 0.5, 0, 0);
                                     villager.setAiDisabled(true);
                                     villager.setInvulnerable(true);
-                                    villager.setCustomName(Text.literal("\u00a7eTaksi Musterisi"));
+                                    villager.setCustomName(Text.literal("\u00a7eTaksi M\u00fc\u015fterisi"));
                                     villager.setCustomNameVisible(true);
                                     world.spawnEntity(villager);
                                     pm.taxiVillagerId = villager.getUuid();
                                 }
                             }
-                            p.sendMessage(Text.literal(P + "\u00a7eMusteri iniyor, lutfen bekle..."));
+                            p.sendMessage(Text.literal(P + "\u00a7eM\u00fc\u015fteri iniyor, l\u00fctfen bekle..."));
                         }
                     }
                 } else if (pm.state.equals("TAMAMLANIYOR")) {
@@ -886,7 +893,7 @@ public class CourierMod implements ModInitializer {
                         double ucret = Math.floor(totalDist * UCRET_METRE_BASI);
                         if (ucret < MIN_UCRET) ucret = MIN_UCRET;
                         addPlayerPara(server, p, (int) ucret);
-                        p.sendMessage(Text.literal(P + "\u00a7bTaksi gorevi basarili! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
+                        p.sendMessage(Text.literal(P + "\u00a7bTaksi g\u00f6revi ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                         p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
                         activeMissions.remove(p.getUuid());
                     }
