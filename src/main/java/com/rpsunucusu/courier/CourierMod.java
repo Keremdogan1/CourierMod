@@ -103,6 +103,10 @@ public class CourierMod implements ModInitializer {
         public double taksiCarpan = 0.1;
     }
 
+    public DataModel getData() {
+        return data;
+    }
+
     public static class PlayerMission {
         public String type = "KURYE"; // "KURYE" veya "TAKSI"
         public String state;
@@ -163,7 +167,7 @@ public class CourierMod implements ModInitializer {
             if (isTabLoaded && !tabPlaceholdersRegistered) {
                 try {
                     System.out.println("[CourierMod] Server started. Registering TAB placeholders...");
-                    TabPlaceholderRegistry.register(serverRef, activeMissions, this::getPlayerParaPublic);
+                    TabPlaceholderRegistry.register(this, serverRef, activeMissions, this::getPlayerParaPublic);
                     tabPlaceholdersRegistered = true;
                     System.out.println("[CourierMod] TAB Placeholders registered successfully!");
                 } catch (Throwable t) {
@@ -955,7 +959,7 @@ public class CourierMod implements ModInitializer {
             try {
                 if (me.neznamy.tab.api.TabAPI.getInstance() != null) {
                     System.out.println("[CourierMod] TAB API is ready (via tick). Registering placeholders...");
-                    TabPlaceholderRegistry.register(serverRef, activeMissions, this::getPlayerParaPublic);
+                    TabPlaceholderRegistry.register(this, serverRef, activeMissions, this::getPlayerParaPublic);
                     tabPlaceholdersRegistered = true;
                     System.out.println("[CourierMod] TAB Placeholders registered successfully!");
                 }
