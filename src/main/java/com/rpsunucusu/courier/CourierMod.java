@@ -12,6 +12,10 @@ import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.util.Identifier;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.network.PacketByteBuf;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -55,6 +59,8 @@ import java.util.Random;
 import java.util.UUID;
 
 public class CourierMod implements ModInitializer {
+    public static final Identifier SYNC_LOCATIONS = new Identifier("couriermod", "sync_locations");
+    public static net.minecraft.server.MinecraftServer serverInstance;
 
     private static CourierMod instance;
     public static CourierMod getInstance() {
@@ -76,6 +82,33 @@ public class CourierMod implements ModInitializer {
     private final MinecraftServer[] serverRef = new MinecraftServer[1];
 
     private final List<String> activityLog = new ArrayList<>();
+
+    public static class PlayerCallRequest {
+        public java.util.UUID playerId;
+        public String playerName;
+        public String type; // "KURYE" or "TAKSI"
+        public long timestamp;
+        public LocationData location;
+        public LocationData targetLocation;
+        public PlayerCallRequest(java.util.UUID id, String name, String type, long time, LocationData loc, LocationData targetLoc) {
+            this.playerId = id; this.playerName = name; this.type = type; this.timestamp = time; this.location = loc; this.targetLocation = targetLoc;
+        }
+    }
+
+    public static class JobOffer {
+        public String jobId;
+        public String type;
+        public boolean isPlayerRequest;
+        public PlayerCallRequest playerRequest;
+        public MissionPair npcMissionPair;
+        public LocationData npcTaksiPickup;
+        public LocationData npcTaksiDropoff;
+        public long expireTime;
+    }
+
+    private java.util.List<PlayerCallRequest> callRequests = new java.util.ArrayList<>();
+    private java.util.Map<String, JobOffer> availableOffers = new java.util.HashMap<>();
+
 
     public static class LocationData {
         public String name;
@@ -112,6 +145,8 @@ public class CourierMod implements ModInitializer {
         public String state;
         public LocationData dagitimLoc;
         public LocationData musteriLoc;
+    public boolean isPlayerJob;
+    public UUID customerId;
         public UUID taxiVillagerId = null;
         public int ticksAtTarget = 0;
         public long missionStartTime = System.currentTimeMillis();
@@ -150,6 +185,7 @@ public class CourierMod implements ModInitializer {
         FabricPlaceholderRegistry.register(this, serverRef);
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            serverInstance = server;
             serverRef[0] = server;
             
             // Clean up old sidebar objective if it exists to avoid conflicts
@@ -192,6 +228,22 @@ public class CourierMod implements ModInitializer {
                 e.printStackTrace();
             }
         }
+    }
+
+    public void syncLocationsToAll() {
+        if (serverInstance == null) return;
+        String json = new Gson().toJson(data);
+        for (ServerPlayerEntity p : serverInstance.getPlayerManager().getPlayerList()) {
+            PacketByteBuf buf = PacketByteBufs.create();
+            buf.writeString(json, 327670);
+            ServerPlayNetworking.send(p, SYNC_LOCATIONS, buf);
+        }
+    }
+    public void syncLocations(ServerPlayerEntity p) {
+        String json = new Gson().toJson(data);
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeString(json, 327670);
+        ServerPlayNetworking.send(p, SYNC_LOCATIONS, buf);
     }
 
     private void saveData() {
@@ -591,75 +643,103 @@ public class CourierMod implements ModInitializer {
 
     // === Mission Logic ===
 
+    private int taksiBitir(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity p = context.getSource().getPlayer();
+        if (p == null) return 0;
+        PlayerMission pm = activeMissions.get(p.getUuid());
+        if (pm == null || !pm.type.equals("TAKSI")) { p.sendMessage(Text.literal("§6[Taksi] §cAktif bir taksi göreviniz yok!")); return 0; }
+        if (pm.isPlayerJob && pm.customerId != null) {
+            ServerPlayerEntity customer = p.getServer().getPlayerManager().getPlayer(pm.customerId);
+            if (customer != null) {
+                double distSq = p.getBlockPos().getSquaredDistance(customer.getBlockPos());
+                if (distSq <= 100.0) {
+                    double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - customer.getBlockPos().getX(), 2) + Math.pow(pm.dagitimLoc.z - customer.getBlockPos().getZ(), 2));
+                    double ucret = Math.floor(totalDist * data.taksiCarpan);
+                    if (ucret < MIN_UCRET) ucret = MIN_UCRET;
+                    p.getServer().getCommandManager().executeWithPrefix(p.getServer().getCommandSource(), "eco take " + customer.getName().getString() + " " + (int) ucret);
+                    customer.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cTaksi ücreti olarak " + (int) ucret + " kesildi."));
+                    addPlayerPara(p.getServer(), p, (int) ucret);
+                    addXp(p, "TAKSI", 50.0);
+                    activeMissions.remove(p.getUuid());
+                    customer.sendMessage(Text.literal("§6[Taksi] §aHedefe ulaştınız. Yolculuk bitti."));
+                    p.sendMessage(Text.literal("§6[Taksi] §aMüşteriyi hedefine ulaştırdınız. Kazanılan: " + (int) ucret + "TL"));
+                } else {
+                    p.sendMessage(Text.literal("§6[Taksi] §cMüşteriye yeterince yakın değilsiniz!"));
+                }
+            } else {
+                p.sendMessage(Text.literal("§6[Taksi] §cMüşteri çevrimiçi değil, görev iptal edildi."));
+                activeMissions.remove(p.getUuid());
+            }
+        } else {
+            p.sendMessage(Text.literal("§6[Taksi] §cBu görev bir NPC görevi, hedef noktaya giderek otomatik bitirebilirsiniz."));
+        }
+        return 1;
+    }
+
+
     private int takeMission(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity p = context.getSource().getPlayer();
         if (p == null) return 0;
-
         if (activeMissions.containsKey(p.getUuid())) {
-            p.sendMessage(Text.literal(P + "\u00a7cZaten aktif bir g\u00f6revin var!"));
+            p.sendMessage(Text.literal(P + "§cZaten aktif bir görevin var!"));
             return 0;
         }
-        if (data.dagitimNoktalari.isEmpty()) {
-            p.sendMessage(Text.literal(P + "\u00a7cHen\u00fcz da\u011f\u0131t\u0131m noktas\u0131 eklenmemi\u015f!"));
-            return 0;
+        List<JobOffer> offers = new ArrayList<>();
+        for (PlayerCallRequest req : callRequests) {
+            if (req.type.equals("KURYE") && offers.size() < 5) {
+                JobOffer o = new JobOffer();
+                o.jobId = UUID.randomUUID().toString().substring(0, 8);
+                o.type = "KURYE";
+                o.isPlayerRequest = true;
+                o.playerRequest = req;
+                o.expireTime = System.currentTimeMillis() + 60000;
+                offers.add(o);
+                availableOffers.put(o.jobId, o);
+            }
         }
-        if (data.musteriNoktalari.isEmpty()) {
-            p.sendMessage(Text.literal(P + "\u00a7cHen\u00fcz m\u00fc\u015fteri noktas\u0131 eklenmemi\u015f!"));
-            return 0;
-        }
-
-        // Distance filtering: Only find dagitim points within 500 meters of the player
         List<MissionPair> validPairs = new ArrayList<>();
         BlockPos pPos = p.getBlockPos();
         for (LocationData dLoc : data.dagitimNoktalari) {
             if (dLoc.world != null && dLoc.world.equalsIgnoreCase(p.getWorld().getRegistryKey().getValue().toString())) {
-                double pDistSq = Math.pow(dLoc.x - pPos.getX(), 2) + Math.pow(dLoc.z - pPos.getZ(), 2);
-                if (pDistSq <= 500.0 * 500.0) {
+                if (Math.pow(dLoc.x - pPos.getX(), 2) + Math.pow(dLoc.z - pPos.getZ(), 2) <= 250000.0) {
                     for (LocationData mLoc : data.musteriNoktalari) {
-                        if (dLoc.world.equalsIgnoreCase(mLoc.world)) {
-                            double routeDistSq = Math.pow(dLoc.x - mLoc.x, 2) + Math.pow(dLoc.z - mLoc.z, 2);
-                            if (routeDistSq <= 500.0 * 500.0) {
-                                validPairs.add(new MissionPair(dLoc, mLoc));
-                            }
+                        if (dLoc.world.equalsIgnoreCase(mLoc.world) && Math.pow(dLoc.x - mLoc.x, 2) + Math.pow(dLoc.z - mLoc.z, 2) <= 250000.0) {
+                            validPairs.add(new MissionPair(dLoc, mLoc));
                         }
                     }
                 }
             }
         }
-
-        if (validPairs.isEmpty()) {
-            p.sendMessage(Text.literal(P + "\u00a7c500 metre mesafe dahilinde teslimat yapilabilecek uygun is bulunamadi!"));
-            logActivity(p.getGameProfile().getName() + " gorev almaya calisti, ancak 500m dahilinde uygun is bulunamadi.");
-            return 0;
+        if (!validPairs.isEmpty()) {
+            while (offers.size() < 5) {
+                MissionPair selected = validPairs.get(random.nextInt(validPairs.size()));
+                JobOffer o = new JobOffer();
+                o.jobId = UUID.randomUUID().toString().substring(0, 8);
+                o.type = "KURYE";
+                o.isPlayerRequest = false;
+                o.npcMissionPair = selected;
+                o.expireTime = System.currentTimeMillis() + 60000;
+                offers.add(o);
+                availableOffers.put(o.jobId, o);
+            }
         }
-
-        MissionPair selected = validPairs.get(random.nextInt(validPairs.size()));
-        LocationData dLoc = selected.dagitim;
-        LocationData mLoc = selected.musteri;
-
-        PlayerMission pm = new PlayerMission();
-        pm.type = "KURYE";
-        pm.state = "TOPLAMA";
-        pm.dagitimLoc = dLoc;
-        pm.musteriLoc = mLoc;
-        activeMissions.put(p.getUuid(), pm);
-
-        ensureParaObjective(context.getSource().getServer());
-
-        p.sendMessage(Text.literal(P + "\u00a7aYeni g\u00f6rev al\u0131nd\u0131!"));
-        
-        MutableText message = Text.literal(P + "\u00a7e1. Durak: ");
-        MutableText nameText = Text.literal("\u00a7b" + dLoc.name);
-        nameText.setStyle(nameText.getStyle()
-            .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kurye wp dagitim"))
-            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("\u00a7aWaypoint olu\u015fturmak i\u00e7in t\u0131kla!"))));
-        message.append(nameText);
-        p.sendMessage(message);
-        logActivity(p.getGameProfile().getName() + " yeni gorev aldi: " + dLoc.name + " -> " + mLoc.name);
+        if (offers.isEmpty()) { p.sendMessage(Text.literal(P + "§cŞu an hiç uygun iş bulunamadı!")); return 0; }
+        p.sendMessage(Text.literal(P + "§e--- Mevcut Kurye İşleri ---"));
+        for (int i = 0; i < offers.size(); i++) {
+            JobOffer o = offers.get(i);
+            MutableText msg = Text.literal("§7" + (i + 1) + ". ");
+            if (o.isPlayerRequest) msg.append(Text.literal("§b[Oyuncu] §f" + o.playerRequest.playerName + " "));
+            else msg.append(Text.literal("§a[NPC] §f" + o.npcMissionPair.dagitim.name + " -> " + o.npcMissionPair.musteri.name + " "));
+            MutableText acceptBtn = Text.literal("§2§l[KABUL ET]");
+            acceptBtn.setStyle(acceptBtn.getStyle().withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kurye_accept " + o.jobId))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("§aGörevi almak için tıkla!"))));
+            msg.append(acceptBtn);
+            p.sendMessage(msg);
+        }
         return 1;
     }
 
-    private int cancelMission(CommandContext<ServerCommandSource> context) {
+private int cancelMission(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity p = context.getSource().getPlayer();
         if (p == null) return 0;
 

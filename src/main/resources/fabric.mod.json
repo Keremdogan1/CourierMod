@@ -7,10 +7,13 @@
 	"authors": [
 		"Antigravity"
 	],
-	"environment": "server",
+	"environment": "*",
 	"entrypoints": {
 		"main": [
 			"com.rpsunucusu.courier.CourierMod"
+		],
+		"client": [
+			"com.rpsunucusu.courier.client.CourierModClient"
 		]
 	},
 	"depends": {
