@@ -215,7 +215,12 @@ public class CourierMod implements ModInitializer {
         });
 
         ServerTickEvents.END_SERVER_TICK.register(this::onServerTick);
-        System.out.println("[CourierMod] Loaded successfully (1.20.1) - Scoreboard Edition!");
+        
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            syncLocationsToPlayer(handler.player);
+        });
+
+        System.out.println("[CourierMod] Loaded successfully (1.5.0) - JourneyMap Client Edition!");
     }
 
     private void loadData() {
@@ -238,12 +243,30 @@ public class CourierMod implements ModInitializer {
             buf.writeString(json, 327670);
             ServerPlayNetworking.send(p, SYNC_LOCATIONS, buf);
         }
+        syncTaksiNoktalariToAll();
     }
-    public void syncLocations(ServerPlayerEntity p) {
+
+    public void syncLocationsToPlayer(ServerPlayerEntity p) {
         String json = new Gson().toJson(data);
         PacketByteBuf buf = PacketByteBufs.create();
         buf.writeString(json, 327670);
         ServerPlayNetworking.send(p, SYNC_LOCATIONS, buf);
+        syncTaksiNoktalariToPlayer(p);
+    }
+
+    public void syncTaksiNoktalariToAll() {
+        if (serverInstance == null) return;
+        String json = new Gson().toJson(data.taksiNoktalari);
+        for (ServerPlayerEntity p : serverInstance.getPlayerManager().getPlayerList()) {
+            syncTaksiNoktalariToPlayer(p);
+        }
+    }
+
+    public void syncTaksiNoktalariToPlayer(ServerPlayerEntity p) {
+        String json = new Gson().toJson(data.taksiNoktalari);
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeString(json, 327670);
+        ServerPlayNetworking.send(p, new Identifier("couriermod", "taksi_sync"), buf);
     }
 
     private void saveData() {
@@ -376,9 +399,8 @@ public class CourierMod implements ModInitializer {
                 .then(CommandManager.literal("siralama-sifirla").executes(this::resetKuryeSiralama))
             )
             .then(CommandManager.literal("siralama").executes(this::showKuryeSiralama))
-        );
-        dispatcher.register(CommandManager.literal("kurye_cagir").executes(this::playerKuryeCagir));
-        dispatcher.register(CommandManager.literal("kurye_accept").then(CommandManager.argument("jobId", com.mojang.brigadier.arguments.StringArgumentType.word()).executes(this::acceptKurye))
+            .then(CommandManager.literal("cagir").executes(this::playerKuryeCagir))
+            .then(CommandManager.literal("iptal-cagri").executes(this::cancelCallKurye))
         );
 
         dispatcher.register(CommandManager.literal("taksi")
@@ -400,9 +422,10 @@ public class CourierMod implements ModInitializer {
                 .then(CommandManager.literal("siralama-sifirla").executes(this::resetTaksiSiralama))
             )
             .then(CommandManager.literal("siralama").executes(this::showTaksiSiralama))
-        );
-        dispatcher.register(CommandManager.literal("taksi_cagir").then(CommandManager.argument("hedef_adi", com.mojang.brigadier.arguments.StringArgumentType.greedyString()).executes(this::playerTaksiCagir)));
-        dispatcher.register(CommandManager.literal("taksi_accept").then(CommandManager.argument("jobId", com.mojang.brigadier.arguments.StringArgumentType.word()).executes(this::acceptTaksi))
+            .then(CommandManager.literal("cagir")
+                .executes(this::listTaksiHedefleri)
+                .then(CommandManager.argument("hedef_adi", com.mojang.brigadier.arguments.StringArgumentType.greedyString()).executes(this::playerTaksiCagir)))
+            .then(CommandManager.literal("iptal-cagri").executes(this::cancelCallTaksi))
         );
     }
 
@@ -687,113 +710,97 @@ public class CourierMod implements ModInitializer {
         ServerPlayerEntity p = context.getSource().getPlayer();
         if (p == null) return 0;
         if (activeMissions.containsKey(p.getUuid())) {
-            p.sendMessage(Text.literal(P + "§cZaten aktif bir görevin var!"));
+            p.sendMessage(Text.literal(P + "§cZaten aktif bir görevin var (Kurye veya Taksi)!"));
             return 0;
         }
-        List<JobOffer> offers = new ArrayList<>();
-        for (PlayerCallRequest req : callRequests) {
-            if (req.type.equals("KURYE") && offers.size() < 5) {
-                JobOffer o = new JobOffer();
-                o.jobId = UUID.randomUUID().toString().substring(0, 8);
-                o.type = "KURYE";
-                o.isPlayerRequest = true;
-                o.playerRequest = req;
-                o.expireTime = System.currentTimeMillis() + 60000;
-                offers.add(o);
-                availableOffers.put(o.jobId, o);
-            }
+        if (data.dagitimNoktalari.isEmpty() || data.musteriNoktalari.isEmpty()) {
+            p.sendMessage(Text.literal(P + "§cKurye sistemi için en az 1 dağıtım ve 1 müşteri noktası gereklidir!"));
+            return 0;
         }
-        List<MissionPair> validPairs = new ArrayList<>();
-        BlockPos pPos = p.getBlockPos();
-        for (LocationData dLoc : data.dagitimNoktalari) {
-            if (dLoc.world != null && dLoc.world.equalsIgnoreCase(p.getWorld().getRegistryKey().getValue().toString())) {
-                if (Math.pow(dLoc.x - pPos.getX(), 2) + Math.pow(dLoc.z - pPos.getZ(), 2) <= 250000.0) {
-                    for (LocationData mLoc : data.musteriNoktalari) {
-                        if (dLoc.world.equalsIgnoreCase(mLoc.world) && Math.pow(dLoc.x - mLoc.x, 2) + Math.pow(dLoc.z - mLoc.z, 2) <= 250000.0) {
-                            validPairs.add(new MissionPair(dLoc, mLoc));
-                        }
-                    }
-                }
-            }
-        }
-        if (!validPairs.isEmpty()) {
-            while (offers.size() < 5) {
-                MissionPair selected = validPairs.get(random.nextInt(validPairs.size()));
-                JobOffer o = new JobOffer();
-                o.jobId = UUID.randomUUID().toString().substring(0, 8);
-                o.type = "KURYE";
-                o.isPlayerRequest = false;
-                o.npcMissionPair = selected;
-                o.expireTime = System.currentTimeMillis() + 60000;
-                offers.add(o);
-                availableOffers.put(o.jobId, o);
-            }
-        }
-        if (offers.isEmpty()) { p.sendMessage(Text.literal(P + "§cŞu an hiç uygun iş bulunamadı!")); return 0; }
-        p.sendMessage(Text.literal(P + "§e--- Mevcut Kurye İşleri ---"));
-        for (int i = 0; i < offers.size(); i++) {
-            JobOffer o = offers.get(i);
-            MutableText msg = Text.literal("§7" + (i + 1) + ". ");
-            if (o.isPlayerRequest) msg.append(Text.literal("§b[Oyuncu] §f" + o.playerRequest.playerName + " "));
-            else msg.append(Text.literal("§a[NPC] §f" + o.npcMissionPair.dagitim.name + " -> " + o.npcMissionPair.musteri.name + " "));
-            MutableText acceptBtn = Text.literal("§2§l[KABUL ET]");
-            acceptBtn.setStyle(acceptBtn.getStyle().withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kurye_accept " + o.jobId))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("§aGörevi almak için tıkla!"))));
-            msg.append(acceptBtn);
-            p.sendMessage(msg);
-        }
+        new JobMenuGui(p, "KURYE", data, activeMissions, callRequests).open();
         return 1;
     }
 
     private int playerKuryeCagir(CommandContext<net.minecraft.server.command.ServerCommandSource> context) {
-        net.minecraft.server.network.ServerPlayerEntity p = context.getSource().getPlayer();
-        if (p == null) return 0;
-        for (PlayerCallRequest req : callRequests) {
-            if (req.playerId.equals(p.getUuid()) && req.type.equals("KURYE")) {
-                p.sendMessage(net.minecraft.text.Text.literal(P + "§cZaten aktif bir kurye isteğiniz var!"));
+        try {
+            net.minecraft.server.network.ServerPlayerEntity p = context.getSource().getPlayer();
+            if (p == null) return 0;
+            for (PlayerCallRequest req : callRequests) {
+                if (req.playerId.equals(p.getUuid()) && req.type.equals("KURYE")) {
+                    p.sendMessage(net.minecraft.text.Text.literal(P + "§cZaten aktif bir kurye isteğiniz var!"));
+                    return 0;
+                }
+            }
+            int para = getPlayerPara(context.getSource().getServer(), p);
+            if (para < MIN_UCRET) {
+                p.sendMessage(net.minecraft.text.Text.literal(P + "§cYetersiz bakiye! Kurye çağırmak için en az " + (int)MIN_UCRET + " TL gerekiyor."));
                 return 0;
             }
-        }
-        int para = getPlayerPara(context.getSource().getServer(), p);
-        if (para < MIN_UCRET) {
-            p.sendMessage(net.minecraft.text.Text.literal(P + "§cYetersiz bakiye! Kurye çağırmak için en az " + (int)MIN_UCRET + " TL gerekiyor."));
+            LocationData loc = new LocationData(p.getGameProfile().getName() + " Konumu", p.getBlockPos().getX(), p.getBlockPos().getY(), p.getBlockPos().getZ(), p.getWorld().getRegistryKey().getValue().toString());
+            callRequests.add(new PlayerCallRequest(p.getUuid(), p.getGameProfile().getName(), "KURYE", System.currentTimeMillis(), loc, null));
+            p.sendMessage(net.minecraft.text.Text.literal(P + "§aİsteğiniz kuryelere iletildi, en kısa sürede biri kabul edecektir."));
+            return 1;
+        } catch (Exception e) {
+            if (context.getSource().getPlayer() != null) {
+                context.getSource().getPlayer().sendMessage(net.minecraft.text.Text.literal("§cHata (Kurye Çağır): " + e.toString()));
+            }
+            e.printStackTrace();
             return 0;
         }
-        LocationData loc = new LocationData(p.getGameProfile().getName() + " Konumu", p.getBlockPos().getX(), p.getBlockPos().getY(), p.getBlockPos().getZ(), p.getWorld().getRegistryKey().getValue().toString());
-        callRequests.add(new PlayerCallRequest(p.getUuid(), p.getGameProfile().getName(), "KURYE", System.currentTimeMillis(), loc, null));
-        p.sendMessage(net.minecraft.text.Text.literal(P + "§aİsteğiniz kuryelere iletildi, en kısa sürede biri kabul edecektir."));
+    }
+
+    private int listTaksiHedefleri(CommandContext<net.minecraft.server.command.ServerCommandSource> context) {
+        net.minecraft.server.network.ServerPlayerEntity p = context.getSource().getPlayer();
+        if (p == null) return 0;
+        if (data.taksiNoktalari.isEmpty()) {
+            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cHeniç taksi noktası yok."));
+            return 0;
+        }
+        
+        syncTaksiNoktalariToPlayer(p);
+        
+        PacketByteBuf buf = PacketByteBufs.create();
+        ServerPlayNetworking.send(p, new Identifier("couriermod", "open_taksi_map"), buf);
         return 1;
     }
 
     private int playerTaksiCagir(CommandContext<net.minecraft.server.command.ServerCommandSource> context) {
-        net.minecraft.server.network.ServerPlayerEntity p = context.getSource().getPlayer();
-        if (p == null) return 0;
-        String hedefAdi = com.mojang.brigadier.arguments.StringArgumentType.getString(context, "hedef_adi");
-        LocationData hedef = null;
-        for (LocationData loc : data.taksiNoktalari) {
-            if (loc.name.equalsIgnoreCase(hedefAdi)) { hedef = loc; break; }
-        }
-        if (hedef == null) {
-            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cBelirtilen hedef bulunamadı!"));
-            return 0;
-        }
-        for (PlayerCallRequest req : callRequests) {
-            if (req.playerId.equals(p.getUuid()) && req.type.equals("TAKSI")) {
-                p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cZaten aktif bir taksi isteğiniz var!"));
+        try {
+            net.minecraft.server.network.ServerPlayerEntity p = context.getSource().getPlayer();
+            if (p == null) return 0;
+            String hedefAdi = com.mojang.brigadier.arguments.StringArgumentType.getString(context, "hedef_adi");
+            LocationData hedef = null;
+            for (LocationData loc : data.taksiNoktalari) {
+                if (loc.name.equalsIgnoreCase(hedefAdi)) { hedef = loc; break; }
+            }
+            if (hedef == null) {
+                p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cBelirtilen hedef bulunamadı!"));
                 return 0;
             }
-        }
-        double dist = Math.sqrt(Math.pow(p.getBlockPos().getX() - hedef.x, 2) + Math.pow(p.getBlockPos().getZ() - hedef.z, 2));
-        double ucret = Math.max(MIN_UCRET, Math.floor(dist * data.taksiCarpan));
-        int para = getPlayerPara(context.getSource().getServer(), p);
-        if (para < ucret) {
-            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cYetersiz bakiye! Bu yolculuk " + (int)ucret + " TL tutuyor, sende " + para + " TL var."));
+            for (PlayerCallRequest req : callRequests) {
+                if (req.playerId.equals(p.getUuid()) && req.type.equals("TAKSI")) {
+                    p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cZaten aktif bir taksi isteğiniz var!"));
+                    return 0;
+                }
+            }
+            double dist = Math.sqrt(Math.pow(p.getBlockPos().getX() - hedef.x, 2) + Math.pow(p.getBlockPos().getZ() - hedef.z, 2));
+            double ucret = Math.max(MIN_UCRET, Math.floor(dist * data.taksiCarpan));
+            int para = getPlayerPara(context.getSource().getServer(), p);
+            if (para < ucret) {
+                p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cYetersiz bakiye! Bu yolculuk " + (int)ucret + " TL tutuyor, sende " + para + " TL var."));
+                return 0;
+            }
+            LocationData loc = new LocationData(p.getGameProfile().getName() + " Konumu", p.getBlockPos().getX(), p.getBlockPos().getY(), p.getBlockPos().getZ(), p.getWorld().getRegistryKey().getValue().toString());
+            callRequests.add(new PlayerCallRequest(p.getUuid(), p.getGameProfile().getName(), "TAKSI", System.currentTimeMillis(), loc, hedef));
+            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §aİsteğiniz taksicilere iletildi (Tahmini Ücret: " + (int)ucret + " TL)."));
+            return 1;
+        } catch (Exception e) {
+            if (context.getSource().getPlayer() != null) {
+                context.getSource().getPlayer().sendMessage(net.minecraft.text.Text.literal("§cHata (Taksi Çağır): " + e.toString()));
+            }
+            e.printStackTrace();
             return 0;
         }
-        LocationData loc = new LocationData(p.getGameProfile().getName() + " Konumu", p.getBlockPos().getX(), p.getBlockPos().getY(), p.getBlockPos().getZ(), p.getWorld().getRegistryKey().getValue().toString());
-        callRequests.add(new PlayerCallRequest(p.getUuid(), p.getGameProfile().getName(), "TAKSI", System.currentTimeMillis(), loc, hedef));
-        p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §aİsteğiniz taksicilere iletildi (Tahmini Ücret: " + (int)ucret + " TL)."));
-        return 1;
     }
 
     private int acceptKurye(CommandContext<net.minecraft.server.command.ServerCommandSource> context) {
@@ -877,12 +884,90 @@ public class CourierMod implements ModInitializer {
             activeMissions.remove(p.getUuid());
             p.getInventory().remove(s -> s.isOf(Items.PAPER) && s.hasCustomName() && s.getName().getString().contains("M\u00fc\u015fteri Paketi"), 1, p.getInventory());
             p.sendMessage(Text.literal(P + "\u00a7cG\u00f6rev iptal edildi."));
+            
+            if (pm.isPlayerJob && pm.customerId != null) {
+                ServerPlayerEntity customer = context.getSource().getServer().getPlayerManager().getPlayer(pm.customerId);
+                if (customer != null) {
+                    customer.sendMessage(Text.literal(pm.type.equals("TAKSI") ? "§6[Taksi] §cTaksiciniz görevi iptal etti! Lütfen tekrar çağırın." : P + "§cKuryeniz görevi iptal etti! Lütfen tekrar çağırın."));
+                }
+            }
+            
             logActivity(p.getGameProfile().getName() + " aktif gorevini iptal etti.");
         } else {
             p.sendMessage(Text.literal(P + "\u00a7cAktif bir g\u00f6revin yok."));
         }
         return 1;
     }
+
+    private int cancelCall(CommandContext<ServerCommandSource> context, String type) {
+        ServerPlayerEntity p = context.getSource().getPlayer();
+        if (p == null) return 0;
+        
+        // 1. Check if unaccepted call
+        PlayerCallRequest targetReq = null;
+        for (PlayerCallRequest req : callRequests) {
+            if (req.playerId.equals(p.getUuid()) && req.type.equals(type)) {
+                targetReq = req;
+                break;
+            }
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        
+        if (targetReq != null) {
+            long elapsed = currentTime - targetReq.timestamp;
+            if (elapsed < 60000) {
+                p.sendMessage(Text.literal((type.equals("TAKSI") ? "§6[Taksi] §c" : P + "§c") + "Siparişinizin üzerinden henüz 1 dakika geçmediği için iptal edemezsiniz!"));
+                return 0;
+            }
+            callRequests.remove(targetReq);
+            p.sendMessage(Text.literal((type.equals("TAKSI") ? "§6[Taksi] §a" : P + "§a") + "Bekleyen çağrınız başarıyla iptal edildi."));
+            return 1;
+        }
+        
+        // 2. Check if accepted mission
+        PlayerMission targetMission = null;
+        java.util.UUID courierId = null;
+        for (java.util.Map.Entry<java.util.UUID, PlayerMission> entry : activeMissions.entrySet()) {
+            PlayerMission pm = entry.getValue();
+            if (pm.isPlayerJob && pm.type.equals(type) && p.getUuid().equals(pm.customerId)) {
+                targetMission = pm;
+                courierId = entry.getKey();
+                break;
+            }
+        }
+        
+        if (targetMission != null) {
+            long elapsed = currentTime - targetMission.missionStartTime;
+            if (elapsed < 60000) {
+                p.sendMessage(Text.literal((type.equals("TAKSI") ? "§6[Taksi] §c" : P + "§c") + "Kuryeniz/Taksiciniz görevi kabul edeli henüz 1 dakika bile olmadı! Biraz daha beklemelisiniz."));
+                return 0;
+            }
+            
+            if (courierId != null) {
+                activeMissions.remove(courierId);
+                ServerPlayerEntity courier = context.getSource().getServer().getPlayerManager().getPlayer(courierId);
+                if (courier != null) {
+                    courier.sendMessage(Text.literal((type.equals("TAKSI") ? "§6[Taksi] §c" : P + "§c") + "Müşteri görevi iptal etti!"));
+                    courier.getInventory().remove(s -> s.isOf(Items.PAPER) && s.hasCustomName() && s.getName().getString().contains("M\u00fc\u015fteri Paketi"), 1, courier.getInventory());
+                    if (targetMission.type.equals("TAKSI") && targetMission.taxiVillagerId != null) {
+                        if (courier.getWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                            net.minecraft.entity.Entity v = ((net.minecraft.server.world.ServerWorld)courier.getWorld()).getEntity(targetMission.taxiVillagerId);
+                            if (v != null) v.discard();
+                        }
+                    }
+                }
+            }
+            p.sendMessage(Text.literal((type.equals("TAKSI") ? "§6[Taksi] §a" : P + "§a") + "Görevi başarıyla iptal ettiniz."));
+            return 1;
+        }
+        
+        p.sendMessage(Text.literal((type.equals("TAKSI") ? "§6[Taksi] §c" : P + "§c") + "İptal edilecek bir çağrınız veya aktif görevde olan kuryeniz yok."));
+        return 0;
+    }
+
+    private int cancelCallKurye(CommandContext<ServerCommandSource> context) { return cancelCall(context, "KURYE"); }
+    private int cancelCallTaksi(CommandContext<ServerCommandSource> context) { return cancelCall(context, "TAKSI"); }
 
     // === TAKSI COMMANDS ===
     private int taksiHelpCommand(CommandContext<ServerCommandSource> context) {
@@ -1016,68 +1101,14 @@ public class CourierMod implements ModInitializer {
         ServerPlayerEntity p = context.getSource().getPlayer();
         if (p == null) return 0;
         if (activeMissions.containsKey(p.getUuid())) {
-            p.sendMessage(Text.literal(P + "\u00a7cZaten aktif bir g\u00f6revin var (Kurye veya Taksi)!"));
+            p.sendMessage(Text.literal(P + "§cZaten aktif bir görevin var (Kurye veya Taksi)!"));
             return 0;
         }
         if (data.taksiNoktalari.size() < 2) {
-            p.sendMessage(Text.literal(P + "\u00a7cTaksi sistemi i\u00e7in en az 2 nokta eklenmi\u015f olmal\u0131d\u0131r!"));
+            p.sendMessage(Text.literal(P + "§cTaksi sistemi için en az 2 nokta eklenmiş olmalıdır!"));
             return 0;
         }
-        
-        List<MissionPair> validPairs = new ArrayList<>();
-        BlockPos pPos = p.getBlockPos();
-        for (LocationData dLoc : data.taksiNoktalari) {
-            if (dLoc.world != null && dLoc.world.equalsIgnoreCase(p.getWorld().getRegistryKey().getValue().toString())) {
-                double pDistSq = Math.pow(dLoc.x - pPos.getX(), 2) + Math.pow(dLoc.z - pPos.getZ(), 2);
-                if (pDistSq <= 500.0 * 500.0) {
-                    for (LocationData mLoc : data.taksiNoktalari) {
-                        if (dLoc.world.equalsIgnoreCase(mLoc.world) && !dLoc.name.equals(mLoc.name)) {
-                            double routeDistSq = Math.pow(dLoc.x - mLoc.x, 2) + Math.pow(dLoc.z - mLoc.z, 2);
-                            if (routeDistSq <= 500.0 * 500.0) {
-                                validPairs.add(new MissionPair(dLoc, mLoc));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (validPairs.isEmpty()) {
-            p.sendMessage(Text.literal(P + "\u00a7c500 metre mesafe dahilinde uygun taksi ba\u015flang\u0131\u00e7 noktas\u0131 bulunamad\u0131!"));
-            return 0;
-        }
-
-        MissionPair selected = validPairs.get(random.nextInt(validPairs.size()));
-        PlayerMission pm = new PlayerMission();
-        pm.type = "TAKSI";
-        pm.state = "TOPLAMA";
-        pm.dagitimLoc = selected.dagitim;
-        pm.musteriLoc = selected.musteri;
-
-        if (p.getWorld() instanceof ServerWorld) {
-            ServerWorld world = (ServerWorld) p.getWorld();
-            VillagerEntity villager = EntityType.VILLAGER.create(world);
-            if (villager != null) {
-                villager.refreshPositionAndAngles(pm.dagitimLoc.x + 0.5, pm.dagitimLoc.y, pm.dagitimLoc.z + 0.5, 0, 0);
-                villager.setAiDisabled(true);
-                villager.setInvulnerable(true);
-                villager.setCustomName(Text.literal("\u00a7eTaksi M\u00fc\u015fterisi"));
-                villager.setCustomNameVisible(true);
-                world.spawnEntity(villager);
-                pm.taxiVillagerId = villager.getUuid();
-            }
-        }
-
-        activeMissions.put(p.getUuid(), pm);
-        p.sendMessage(Text.literal(P + "\u00a7aTaksi g\u00f6revi al\u0131nd\u0131!"));
-        
-        MutableText message = Text.literal(P + "\u00a7eYolcu \u015fuarada bekliyor: ");
-        MutableText nameText = Text.literal("\u00a7b" + pm.dagitimLoc.name);
-        nameText.setStyle(nameText.getStyle()
-            .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kurye wp dagitim"))
-            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("\u00a7aWaypoint olu\u015fturmak i\u00e7in t\u0131kla!"))));
-        message.append(nameText);
-        p.sendMessage(message);
+        new JobMenuGui(p, "TAKSI", data, activeMissions, callRequests).open();
         return 1;
     }
 
@@ -1190,6 +1221,78 @@ public class CourierMod implements ModInitializer {
         tickCounter++;
         if (tickCounter < 20) return;
         tickCounter = 0;
+        
+        long currentTime = System.currentTimeMillis();
+        java.util.List<java.util.UUID> toCancel = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<java.util.UUID, PlayerMission> entry : activeMissions.entrySet()) {
+            PlayerMission pm = entry.getValue();
+            if (pm.isPlayerJob && pm.customerId != null) {
+                long elapsed = currentTime - pm.missionStartTime;
+                if (elapsed > 5 * 60 * 1000) {
+                    toCancel.add(entry.getKey());
+                } else if (elapsed > 2 * 60 * 1000) {
+                    long elapsedSeconds = elapsed / 1000;
+                    if (elapsedSeconds % 30 == 0) {
+                        ServerPlayerEntity courier = server.getPlayerManager().getPlayer(entry.getKey());
+                        if (courier != null) {
+                            long remaining = (5 * 60 * 1000 - elapsed) / 1000;
+                            courier.sendMessage(Text.literal(pm.type.equals("TAKSI") ? "§6[Taksi] §cMüşteri sizi bekliyor! İptal olmasına " + remaining + " saniye kaldı!" : P + "§cMüşteri sizi bekliyor! İptal olmasına " + remaining + " saniye kaldı!"));
+                        }
+                    }
+                    if (elapsedSeconds % 30 == 0) {
+                        ServerPlayerEntity customer = server.getPlayerManager().getPlayer(pm.customerId);
+                        if (customer != null) {
+                            customer.sendMessage(Text.literal(pm.type.equals("TAKSI") ? "§6[Taksi] §cTaksiciniz henüz ulaşmadı. İsterseniz /taksi iptal-cagri ile iptal edebilirsiniz." : P + "§cKuryeniz henüz ulaşmadı. İsterseniz /kurye iptal-cagri ile iptal edebilirsiniz."));
+                        }
+                    }
+                }
+            }
+        }
+        for (java.util.UUID id : toCancel) {
+            PlayerMission pm = activeMissions.get(id);
+            activeMissions.remove(id);
+            ServerPlayerEntity courier = server.getPlayerManager().getPlayer(id);
+            if (courier != null) {
+                courier.sendMessage(Text.literal(pm.type.equals("TAKSI") ? "§6[Taksi] §cGörev zaman aşımına uğradı." : P + "§cGörev zaman aşımına uğradı."));
+                courier.getInventory().remove(s -> s.isOf(Items.PAPER) && s.hasCustomName() && s.getName().getString().contains("M\u00fc\u015fteri Paketi"), 1, courier.getInventory());
+                if (pm.type.equals("TAKSI") && pm.taxiVillagerId != null) {
+                    if (courier.getWorld() instanceof net.minecraft.server.world.ServerWorld) {
+                        net.minecraft.entity.Entity v = ((net.minecraft.server.world.ServerWorld)courier.getWorld()).getEntity(pm.taxiVillagerId);
+                        if (v != null) v.discard();
+                    }
+                }
+            }
+            if (pm.customerId != null) {
+                ServerPlayerEntity customer = server.getPlayerManager().getPlayer(pm.customerId);
+                if (customer != null) {
+                    customer.sendMessage(Text.literal(pm.type.equals("TAKSI") ? "§6[Taksi] §cTaksiciniz uzun süre gelmediği için görev iptal edildi." : P + "§cKuryeniz uzun süre gelmediği için görev iptal edildi."));
+                }
+            }
+        }
+        
+        java.util.List<PlayerCallRequest> expiredRequests = new java.util.ArrayList<>();
+        for (PlayerCallRequest req : callRequests) {
+            long elapsed = currentTime - req.timestamp;
+            if (elapsed > 5 * 60 * 1000) {
+                expiredRequests.add(req);
+            } else if (elapsed > 2 * 60 * 1000) {
+                long elapsedSeconds = elapsed / 1000;
+                if (elapsedSeconds % 30 == 0) {
+                    ServerPlayerEntity customer = server.getPlayerManager().getPlayer(req.playerId);
+                    if (customer != null) {
+                        customer.sendMessage(Text.literal(req.type.equals("TAKSI") ? "§6[Taksi] §cTaksiniz henüz bulunamadı... Beklemeye devam edebilir veya /taksi iptal-cagri ile iptal edebilirsiniz." : P + "§cKurye henüz bulunamadı... Beklemeye devam edebilir veya /kurye iptal-cagri ile iptal edebilirsiniz."));
+                    }
+                }
+            }
+        }
+        
+        for (PlayerCallRequest req : expiredRequests) {
+            callRequests.remove(req);
+            ServerPlayerEntity customer = server.getPlayerManager().getPlayer(req.playerId);
+            if (customer != null) {
+                customer.sendMessage(Text.literal(req.type.equals("TAKSI") ? "§6[Taksi] §c5 dakika boyunca hiçbir taksi çağrınızı kabul etmediği için isteğiniz otomatik olarak iptal edildi." : P + "§c5 dakika boyunca hiçbir kurye çağrınızı kabul etmediği için isteğiniz otomatik olarak iptal edildi."));
+            }
+        }
         
         tipCounter++;
 

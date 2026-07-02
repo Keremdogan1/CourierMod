@@ -1,24 +1,55 @@
 package com.rpsunucusu.courier.client;
 
-import com.google.gson.Gson;
-import com.rpsunucusu.courier.CourierMod;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.util.Identifier;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.ArrayList;
 
 @Environment(EnvType.CLIENT)
 public class CourierModClient implements ClientModInitializer {
-    public static CourierMod.DataModel clientData = new CourierMod.DataModel();
+    
+    public static class LocationData {
+        public String name;
+        public int x;
+        public int y;
+        public int z;
+        public String world;
+    }
+    
+    public static List<LocationData> taksiNoktalari = new ArrayList<>();
 
     @Override
     public void onInitializeClient() {
-        ClientPlayNetworking.registerGlobalReceiver(CourierMod.SYNC_LOCATIONS, (client, handler, buf, responseSender) -> {
-            String json = buf.readString(327670);
+        System.out.println("[CourierMod] Initializing Client...");
+        
+        ClientPlayNetworking.registerGlobalReceiver(new Identifier("couriermod", "taksi_sync"), (client, handler, buf, responseSender) -> {
+            String json = buf.readString();
             client.execute(() -> {
-                clientData = new Gson().fromJson(json, CourierMod.DataModel.class);
-                if (JourneyMapPlugin.getInstance() != null) {
-                    JourneyMapPlugin.getInstance().updateWaypoints();
+                try {
+                    Type listType = new TypeToken<ArrayList<LocationData>>(){}.getType();
+                    taksiNoktalari = new Gson().fromJson(json, listType);
+                    System.out.println("[CourierMod] Received Taksi Points from server! Total: " + taksiNoktalari.size());
+                    CourierModJMPlugin.refreshWaypoints();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        });
+        
+        ClientPlayNetworking.registerGlobalReceiver(new Identifier("couriermod", "open_taksi_map"), (client, handler, buf, responseSender) -> {
+            client.execute(() -> {
+                System.out.println("[CourierMod] Received open_taksi_map packet!");
+                CourierModJMPlugin.openFullscreenMap();
+                if (client.player != null) {
+                    client.inGameHud.setTitle(net.minecraft.text.Text.literal("§a§lTAKSİ ÇAĞIR"));
+                    client.inGameHud.setSubtitle(net.minecraft.text.Text.literal("§e§lGitmek İstediğiniz Yeri Seçin"));
+                    client.inGameHud.setTitleTicks(10, 60, 10);
                 }
             });
         });
