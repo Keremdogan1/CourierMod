@@ -80,12 +80,20 @@ public class CourierModJMPlugin implements IClientPlugin {
     public static void openFullscreenMap() {
         if (jmAPI == null) return;
         try {
-            // Find JourneyMap's map keybinding and simulate a key press
+            boolean found = false;
             for (net.minecraft.client.option.KeyBinding key : MinecraftClient.getInstance().options.allKeys) {
-                if (key.getCategory().contains("journeymap") && key.getTranslationKey().contains("key.map")) {
+                String cat = key.getCategory().toLowerCase();
+                String name = key.getTranslationKey().toLowerCase();
+                if (cat.contains("journeymap") && (name.contains("map") || name.contains("fullscreen") || name.contains("display"))) {
                     net.minecraft.client.option.KeyBinding.onKeyPressed(key.getDefaultKey());
+                    key.setPressed(true);
+                    key.setPressed(false);
+                    found = true;
                     break;
                 }
+            }
+            if (!found) {
+                System.out.println("[CourierMod] Could not find JourneyMap keybinding!");
             }
         } catch (Exception e) {
             e.printStackTrace();
