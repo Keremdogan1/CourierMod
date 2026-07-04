@@ -67,13 +67,13 @@ public class CourierModJMPlugin implements IClientPlugin {
                     @Override
                     public boolean onMouseClick(journeymap.client.api.util.UIState mapState, java.awt.geom.Point2D.Double mousePosition, net.minecraft.util.math.BlockPos blockPosition, int button, boolean doubleClick) {
                         MinecraftClient.getInstance().execute(() -> {
-                            if (MinecraftClient.getInstance().player != null) {
+                            if (MinecraftClient.getInstance().player != null && CourierModClient.taksiRequestedTime == 0) {
                                 MinecraftClient.getInstance().player.networkHandler.sendCommand("taksi cagir " + loc.name);
-                                // Optional: Close the map after clicking
-                                MinecraftClient.getInstance().setScreen(null);
+                                // Mark the request time so we can show "Iletildi" and close after 3s
+                                CourierModClient.taksiRequestedTime = System.currentTimeMillis();
                             }
                         });
-                        return false;
+                        return true;
                     }
                     @Override
                     public void onOverlayMenuPopup(journeymap.client.api.util.UIState mapState, java.awt.geom.Point2D.Double mousePosition, net.minecraft.util.math.BlockPos blockPosition, journeymap.client.api.display.ModPopupMenu modPopupMenu) {}
