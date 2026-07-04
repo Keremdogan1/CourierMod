@@ -188,8 +188,15 @@ public class JobMenuGui extends SimpleGui {
             }
         }
         
+        
+        double dist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
+        double ucret = Math.floor(dist * (jobType.equals("TAKSI") ? data.taksiCarpan : data.kuryeCarpan));
+        if (ucret < CourierMod.MIN_UCRET) ucret = CourierMod.MIN_UCRET;
+        pm.ucret = ucret;
+
         activeMissions.put(player.getUuid(), pm);
         player.sendMessage(Text.literal("§aNPC çağrısını kabul ettin! §eGitmen gereken yer: " + pm.dagitimLoc.name));
+
         
         net.minecraft.text.MutableText message = Text.literal("§eHedef waypoint'ini görmek için tıkla: ");
         net.minecraft.text.MutableText nameText = Text.literal("§b" + pm.dagitimLoc.name);
