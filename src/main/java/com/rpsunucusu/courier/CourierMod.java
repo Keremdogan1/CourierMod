@@ -915,7 +915,7 @@ public class CourierMod implements ModInitializer {
                 }
             }
             activeMissions.remove(p.getUuid());
-            p.getInventory().remove(s -> s.isOf(Items.PAPER) && s.hasCustomName() && s.getName().getString().contains("M\u00fc\u015fteri Paketi"), 1, p.getInventory());
+            p.getInventory().remove(s -> s.isOf(Items.BUNDLE) && s.hasCustomName() && s.getName().getString().contains("M\u00fch\u00fcrl\u00fc Kurye Boh\u00e7as\u0131"), 1, p.getInventory());
             p.sendMessage(Text.literal(P + "\u00a7cG\u00f6rev iptal edildi."));
             
             if (pm.isPlayerJob && pm.customerId != null) {
@@ -986,7 +986,7 @@ public class CourierMod implements ModInitializer {
                 ServerPlayerEntity courier = context.getSource().getServer().getPlayerManager().getPlayer(courierId);
                 if (courier != null) {
                     courier.sendMessage(Text.literal((type.equals("TAKSI") ? "§6[Taksi] §c" : P + "§c") + "Müşteri görevi iptal etti!"));
-                    courier.getInventory().remove(s -> s.isOf(Items.PAPER) && s.hasCustomName() && s.getName().getString().contains("M\u00fc\u015fteri Paketi"), 1, courier.getInventory());
+                    courier.getInventory().remove(s -> s.isOf(Items.BUNDLE) && s.hasCustomName() && s.getName().getString().contains("M\u00fch\u00fcrl\u00fc Kurye Boh\u00e7as\u0131"), 1, courier.getInventory());
                     if (targetMission.type.equals("TAKSI") && targetMission.taxiVillagerId != null) {
                         if (courier.getWorld() instanceof net.minecraft.server.world.ServerWorld) {
                             net.minecraft.entity.Entity v = ((net.minecraft.server.world.ServerWorld)courier.getWorld()).getEntity(targetMission.taxiVillagerId);
@@ -1291,7 +1291,7 @@ public class CourierMod implements ModInitializer {
             ServerPlayerEntity courier = server.getPlayerManager().getPlayer(id);
             if (courier != null) {
                 courier.sendMessage(Text.literal(pm.type.equals("TAKSI") ? "§6[Taksi] §cGörev zaman aşımına uğradı." : P + "§cGörev zaman aşımına uğradı."));
-                courier.getInventory().remove(s -> s.isOf(Items.PAPER) && s.hasCustomName() && s.getName().getString().contains("M\u00fc\u015fteri Paketi"), 1, courier.getInventory());
+                courier.getInventory().remove(s -> s.isOf(Items.BUNDLE) && s.hasCustomName() && s.getName().getString().contains("M\u00fch\u00fcrl\u00fc Kurye Boh\u00e7as\u0131"), 1, courier.getInventory());
                 if (pm.type.equals("TAKSI") && pm.taxiVillagerId != null) {
                     if (courier.getWorld() instanceof net.minecraft.server.world.ServerWorld) {
                         net.minecraft.entity.Entity v = ((net.minecraft.server.world.ServerWorld)courier.getWorld()).getEntity(pm.taxiVillagerId);
@@ -1383,8 +1383,8 @@ public class CourierMod implements ModInitializer {
                                 continue;
                             }
                             pm.state = "TESLIMAT";
-                            ItemStack item = new ItemStack(Items.PAPER);
-                            item.setCustomName(Text.literal("\u00a7dM\u00fc\u015fteri Paketi"));
+                            ItemStack item = new ItemStack(Items.BUNDLE);
+                            item.setCustomName(Text.literal("\u00a7dM\u00fch\u00fcrl\u00fc Kurye Boh\u00e7as\u0131"));
                             p.getInventory().insertStack(item);
                             MutableText message = Text.literal(P + "\u00a7aPaketi ald\u0131n! \u015eimdi ");
                             MutableText nameText = Text.literal("\u00a7b" + pm.musteriLoc.name);
