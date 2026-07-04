@@ -69,7 +69,7 @@ public class CourierMod implements ModInitializer {
 
     private static final String P = "\u00a76[Kurye] ";
     private static final String AP = "\u00a76[Kurye-Admin] ";
-    private static final double MIN_UCRET = 5.0;
+    public static final double MIN_UCRET = 5.0;
 
     private static final File DATA_FILE = new File("config/kurye_data.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -150,6 +150,7 @@ public class CourierMod implements ModInitializer {
         public UUID taxiVillagerId = null;
         public int ticksAtTarget = 0;
         public long missionStartTime = System.currentTimeMillis();
+        public double ucret = 0;
     }
 
     private static final String[] TIPS = {
@@ -306,7 +307,7 @@ public class CourierMod implements ModInitializer {
 
     // === Scoreboard Helpers ===
 
-    private ScoreboardObjective getOrCreateObjective(Scoreboard scoreboard, String name, String displayName) {
+    public static ScoreboardObjective getOrCreateObjective(Scoreboard scoreboard, String name, String displayName) {
         ScoreboardObjective obj = scoreboard.getNullableObjective(name);
         if (obj == null) {
             obj = scoreboard.addObjective(name, ScoreboardCriterion.DUMMY,
@@ -315,11 +316,11 @@ public class CourierMod implements ModInitializer {
         return obj;
     }
 
-    private void ensureParaObjective(MinecraftServer server) {
+    public static void ensureParaObjective(MinecraftServer server) {
         getOrCreateObjective(server.getScoreboard(), PARA_OBJECTIVE, "\u00a7e\ud83d\udcb0 Para");
     }
 
-    private int getPlayerPara(MinecraftServer server, ServerPlayerEntity p) {
+    public static int getPlayerPara(MinecraftServer server, ServerPlayerEntity p) {
         try {
             Class<?> playerDataStateClass = Class.forName("com.example.secretid.PlayerDataState");
             Method getServerStateMethod = playerDataStateClass.getMethod("getServerState", MinecraftServer.class);
@@ -340,7 +341,7 @@ public class CourierMod implements ModInitializer {
         return getPlayerPara(server, p);
     }
 
-    private void addPlayerPara(MinecraftServer server, ServerPlayerEntity p, int amount) {
+    public static void addPlayerPara(MinecraftServer server, ServerPlayerEntity p, int amount) {
         try {
             Class<?> playerDataStateClass = Class.forName("com.example.secretid.PlayerDataState");
             Method getServerStateMethod = playerDataStateClass.getMethod("getServerState", MinecraftServer.class);
@@ -816,8 +817,7 @@ public class CourierMod implements ModInitializer {
                 p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cYetersiz bakiye! Bu yolculuk " + (int)ucret + " TL tutuyor, sende " + para + " TL var."));
                 return 0;
             }
-            addPlayerPara(context.getSource().getServer(), p, -(int)ucret);
-            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §aEmanet olarak " + (int)ucret + " TL hesabınızdan kesildi."));
+            
             LocationData loc = new LocationData(p.getGameProfile().getName() + " Konumu", p.getBlockPos().getX(), p.getBlockPos().getY(), p.getBlockPos().getZ(), p.getWorld().getRegistryKey().getValue().toString());
             callRequests.add(new PlayerCallRequest(p.getUuid(), p.getGameProfile().getName(), "TAKSI", System.currentTimeMillis(), loc, hedef));
             
@@ -1329,8 +1329,7 @@ public class CourierMod implements ModInitializer {
                 double ucret = Math.max(MIN_UCRET, Math.floor(dist * data.taksiCarpan));
                 ServerPlayerEntity customer = server.getPlayerManager().getPlayer(expReq.playerId);
                 if (customer != null) {
-                    addPlayerPara(server, customer, (int)ucret);
-                    customer.sendMessage(Text.literal("§6[Taksi] §cÇağrınız zaman aşımına uğradığı için " + (int)ucret + " TL iade edildi."));
+                    customer.sendMessage(Text.literal("§6[Taksi] §cÇağrınız taksiciler tarafından kabul edilmediği için zaman aşımına uğradı ve iptal edildi."));
                 }
             }
         }
@@ -1411,8 +1410,7 @@ public class CourierMod implements ModInitializer {
                             }
                             if (hasItem) {
                                 double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
-                                double ucret = Math.floor(totalDist * data.kuryeCarpan);
-                                if (ucret < MIN_UCRET) ucret = MIN_UCRET;
+                                  double ucret = pm.ucret;
                                 addPlayerPara(server, p, (int) ucret);
                                 p.sendMessage(Text.literal(P + "\u00a7bTeslimat ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                                   if (pm.isPlayerJob) {
@@ -1522,13 +1520,11 @@ public class CourierMod implements ModInitializer {
                                 p.sendMessage(Text.literal(P + "\u00a7eM\u00fc\u015fteri iniyor, l\u00fctfen bekle..."));
                             } else {
                                 double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
-                                double ucret = Math.floor(totalDist * data.taksiCarpan);
-                                if (ucret < MIN_UCRET) ucret = MIN_UCRET;
+                                  double ucret = pm.ucret;
                                 
                                 ServerPlayerEntity customer = server.getPlayerManager().getPlayer(pm.customerId);
                                 if (customer != null) {
-                                    server.getCommandManager().executeWithPrefix(server.getCommandSource(), "eco take " + customer.getName().getString() + " " + (int) ucret);
-                                    customer.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cTaksi ücreti olarak " + (int) ucret + " kesildi."));
+                                    customer.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §aHedefe ulaştınız. Taksi yolculuğunuz tamamlandı."));
                                     customer.stopRiding();
                             p.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityPassengersSetS2CPacket(p));
                                     customer.sendMessage(Text.literal("§6[Taksi] §aHedefe ulaştınız. Yolculuk bitti."));
@@ -1552,8 +1548,7 @@ public class CourierMod implements ModInitializer {
                             if (v != null) v.discard();
                         }
                         double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
-                        double ucret = Math.floor(totalDist * data.taksiCarpan);
-                        if (ucret < MIN_UCRET) ucret = MIN_UCRET;
+                                  double ucret = pm.ucret;
                         addPlayerPara(server, p, (int) ucret);
                         p.sendMessage(Text.literal(P + "\u00a7bTaksi g\u00f6revi ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                         p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));

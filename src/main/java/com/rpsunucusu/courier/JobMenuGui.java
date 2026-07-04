@@ -112,11 +112,37 @@ public class JobMenuGui extends SimpleGui {
             pm.musteriLoc = req.location;
         }
         
+        
+        double dist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
+        double ucret = Math.floor(dist * (jobType.equals("TAKSI") ? data.taksiCarpan : data.kuryeCarpan));
+        if (ucret < CourierMod.MIN_UCRET) ucret = CourierMod.MIN_UCRET;
+        
+        net.minecraft.server.MinecraftServer server = player.getServer();
+        ServerPlayerEntity customer = server.getPlayerManager().getPlayer(req.playerId);
+        
+        if (customer != null) {
+            int para = CourierMod.getPlayerPara(server, customer);
+            if (para < ucret) {
+                player.sendMessage(Text.literal("§cMüşterinin yeterli bakiyesi kalmamış."));
+                customer.sendMessage(Text.literal("§c" + jobType + " çağrınız yetersiz bakiye (Gereken: " + (int)ucret + " TL) sebebiyle iptal edildi!"));
+                callRequests.remove(req);
+                return;
+            }
+            CourierMod.addPlayerPara(server, customer, -(int)ucret);
+            pm.ucret = ucret;
+        } else {
+            // Customer is offline
+            player.sendMessage(Text.literal("§cMüşteri oyundan çıkmış."));
+            callRequests.remove(req);
+            return;
+        }
+
         activeMissions.put(player.getUuid(), pm);
         callRequests.remove(req);
+
         
         // Müşteriye bildirim gönder
-        ServerPlayerEntity customer = player.getServer().getPlayerManager().getPlayer(req.playerId);
+        customer = server.getPlayerManager().getPlayer(req.playerId);
         if (customer != null) {
             if (jobType.equals("TAKSI")) {
                 customer.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §a" + player.getGameProfile().getName() + " isimli taksici çağrınızı kabul etti! Geliyor..."));
