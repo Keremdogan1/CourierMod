@@ -47,9 +47,8 @@ public class CourierModClient implements ClientModInitializer {
                 System.out.println("[CourierMod] Received open_taksi_map packet!");
                 CourierModJMPlugin.openFullscreenMap();
                 if (client.player != null) {
-                    client.inGameHud.setTitle(net.minecraft.text.Text.literal("§a§lTAKSİ ÇAĞIR"));
-                    client.inGameHud.setSubtitle(net.minecraft.text.Text.literal("§e§lGitmek İstediğiniz Yeri Seçin"));
-                    client.inGameHud.setTitleTicks(10, 60, 10);
+                    // Send a chat message instead of an in-game HUD title because the Fullscreen map hides the HUD
+                    client.player.sendMessage(net.minecraft.text.Text.literal("§e§l[Taksi] §aHaritadan gitmek istediğiniz §eTaksi Noktasına §atıklayın!"), false);
                 }
             });
         });

@@ -37,8 +37,8 @@ public class CourierModJMPlugin implements IClientPlugin {
             jmAPI.removeAll("couriermod");
             
             for (CourierModClient.LocationData loc : CourierModClient.taksiNoktalari) {
-                // Using a default map marker image from JourneyMap (or Minecraft)
-                MapImage icon = new MapImage(new Identifier("journeymap", "ui/img/waypoint-icon.png"), 32, 32);
+                // Using a vanilla map texture instead of a JourneyMap one to avoid missing texture issues
+                MapImage icon = new MapImage(new Identifier("minecraft", "textures/item/map.png"), 32, 32);
                 icon.setAnchorX(icon.getDisplayWidth() / 2.0)
                     .setAnchorY(icon.getDisplayHeight() / 2.0);
 
@@ -46,7 +46,14 @@ public class CourierModJMPlugin implements IClientPlugin {
                 
                 MarkerOverlay marker = new MarkerOverlay("couriermod", "taksi_" + loc.name.replaceAll("\\s+", "_"), pos, icon);
                 marker.setTitle("§e§l" + loc.name + "\n§aTaksi çağırmak için tıklayın!");
-                marker.setDimension(net.minecraft.world.World.OVERWORLD);
+                marker.setLabel("§e" + loc.name + " §7(Tıkla)");
+                
+                // Parse dimension correctly instead of hardcoding OVERWORLD
+                net.minecraft.registry.RegistryKey<net.minecraft.world.World> dimKey = net.minecraft.world.World.OVERWORLD;
+                try {
+                    dimKey = net.minecraft.registry.RegistryKey.of(net.minecraft.registry.RegistryKeys.WORLD, new Identifier(loc.world));
+                } catch (Exception ignored) {}
+                marker.setDimension(dimKey);
                 
                 marker.setOverlayListener(new journeymap.client.api.display.IOverlayListener() {
                     @Override
@@ -62,6 +69,8 @@ public class CourierModJMPlugin implements IClientPlugin {
                         MinecraftClient.getInstance().execute(() -> {
                             if (MinecraftClient.getInstance().player != null) {
                                 MinecraftClient.getInstance().player.networkHandler.sendCommand("taksi cagir " + loc.name);
+                                // Optional: Close the map after clicking
+                                MinecraftClient.getInstance().setScreen(null);
                             }
                         });
                         return false;
