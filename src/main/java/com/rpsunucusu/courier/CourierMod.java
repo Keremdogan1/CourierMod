@@ -215,6 +215,30 @@ public class CourierMod implements ModInitializer {
         });
 
         ServerTickEvents.END_SERVER_TICK.register(this::onServerTick);
+
+        net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> {
+            if (entity instanceof net.minecraft.server.network.ServerPlayerEntity p) {
+                // If the player is a taxi driver in an automobility car
+                if (p.hasVehicle() && net.minecraft.entity.EntityType.getId(p.getVehicle().getType()).toString().contains("automobility")) {
+                    if (activeMissions.containsKey(p.getUuid())) {
+                        PlayerMission pm = activeMissions.get(p.getUuid());
+                        if (pm.type.equals("TAKSI")) return false;
+                    }
+                    for (PlayerMission pm : activeMissions.values()) {
+                        if (pm.type.equals("TAKSI") && pm.isPlayerJob && p.getUuid().equals(pm.customerId)) return false;
+                    }
+                }
+                // If the player is the customer riding the taxi driver
+                if (p.hasVehicle() && p.getVehicle() instanceof net.minecraft.server.network.ServerPlayerEntity driver) {
+                    if (activeMissions.containsKey(driver.getUuid())) {
+                        PlayerMission pm = activeMissions.get(driver.getUuid());
+                        if (pm.type.equals("TAKSI") && p.getUuid().equals(pm.customerId)) return false;
+                    }
+                }
+            }
+            return true;
+        });
+        
         
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             syncLocationsToPlayer(handler.player);
@@ -690,6 +714,8 @@ public class CourierMod implements ModInitializer {
                     addPlayerPara(p.getServer(), p, (int) ucret);
                     addXp(p, "TAKSI", 50.0);
                     activeMissions.remove(p.getUuid());
+                    customer.stopRiding();
+                            p.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityPassengersSetS2CPacket(p));
                     customer.sendMessage(Text.literal("§6[Taksi] §aHedefe ulaştınız. Yolculuk bitti."));
                     p.sendMessage(Text.literal("§6[Taksi] §aMüşteriyi hedefine ulaştırdınız. Kazanılan: " + (int) ucret + "TL"));
                 } else {
@@ -790,9 +816,16 @@ public class CourierMod implements ModInitializer {
                 p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cYetersiz bakiye! Bu yolculuk " + (int)ucret + " TL tutuyor, sende " + para + " TL var."));
                 return 0;
             }
+            addPlayerPara(context.getSource().getServer(), p, -(int)ucret);
+            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §aEmanet olarak " + (int)ucret + " TL hesabınızdan kesildi."));
             LocationData loc = new LocationData(p.getGameProfile().getName() + " Konumu", p.getBlockPos().getX(), p.getBlockPos().getY(), p.getBlockPos().getZ(), p.getWorld().getRegistryKey().getValue().toString());
             callRequests.add(new PlayerCallRequest(p.getUuid(), p.getGameProfile().getName(), "TAKSI", System.currentTimeMillis(), loc, hedef));
-            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §aİsteğiniz taksicilere iletildi (Tahmini Ücret: " + (int)ucret + " TL)."));
+            
+            String msgText = "§6[Taksi] §aİsteğiniz taksicilere iletildi (Tahmini Ücret: " + (int)ucret + " TL).";
+            PacketByteBuf bufSuccess = PacketByteBufs.create();
+            bufSuccess.writeString(msgText);
+            ServerPlayNetworking.send(p, new net.minecraft.util.Identifier("couriermod", "taksi_request_success"), bufSuccess);
+        
             return 1;
         } catch (Exception e) {
             if (context.getSource().getPlayer() != null) {
@@ -888,6 +921,10 @@ public class CourierMod implements ModInitializer {
             if (pm.isPlayerJob && pm.customerId != null) {
                 ServerPlayerEntity customer = context.getSource().getServer().getPlayerManager().getPlayer(pm.customerId);
                 if (customer != null) {
+                    if (pm.type.equals("TAKSI")) {
+                        customer.stopRiding();
+                            p.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityPassengersSetS2CPacket(p));
+                    }
                     customer.sendMessage(Text.literal(pm.type.equals("TAKSI") ? "§6[Taksi] §cTaksiciniz görevi iptal etti! Lütfen tekrar çağırın." : P + "§cKuryeniz görevi iptal etti! Lütfen tekrar çağırın."));
                 }
             }
@@ -1284,6 +1321,19 @@ public class CourierMod implements ModInitializer {
                     }
                 }
             }
+            
+        for (PlayerCallRequest expReq : expiredRequests) {
+            callRequests.remove(expReq);
+            if (expReq.type.equals("TAKSI")) {
+                double dist = Math.sqrt(Math.pow(expReq.location.x - expReq.targetLocation.x, 2) + Math.pow(expReq.location.z - expReq.targetLocation.z, 2));
+                double ucret = Math.max(MIN_UCRET, Math.floor(dist * data.taksiCarpan));
+                ServerPlayerEntity customer = server.getPlayerManager().getPlayer(expReq.playerId);
+                if (customer != null) {
+                    addPlayerPara(server, customer, (int)ucret);
+                    customer.sendMessage(Text.literal("§6[Taksi] §cÇağrınız zaman aşımına uğradığı için " + (int)ucret + " TL iade edildi."));
+                }
+            }
+        }
         }
         
         for (PlayerCallRequest req : expiredRequests) {
@@ -1353,7 +1403,7 @@ public class CourierMod implements ModInitializer {
                             boolean hasItem = false;
                             for (int i = 0; i < p.getInventory().size(); i++) {
                                 ItemStack stack = p.getInventory().getStack(i);
-                                if (stack.isOf(Items.PAPER) && stack.hasCustomName() && stack.getName().getString().contains("M\u00fc\u015fteri Paketi")) {
+                                if (stack.isOf(Items.BUNDLE) && stack.hasCustomName() && stack.getName().getString().contains("M\u00fch\u00fcrl\u00fc Kurye Boh\u00e7as\u0131")) {
                                     stack.decrement(1);
                                     hasItem = true;
                                     break;
@@ -1365,6 +1415,14 @@ public class CourierMod implements ModInitializer {
                                 if (ucret < MIN_UCRET) ucret = MIN_UCRET;
                                 addPlayerPara(server, p, (int) ucret);
                                 p.sendMessage(Text.literal(P + "\u00a7bTeslimat ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
+                                  if (pm.isPlayerJob) {
+                                      ServerPlayerEntity customer = server.getPlayerManager().getPlayer(pm.customerId);
+                                      if (customer != null) {
+                                          ItemStack beef = new ItemStack(Items.COOKED_BEEF, 6);
+                                          customer.getInventory().insertStack(beef);
+                                          customer.sendMessage(Text.literal("\u00a7a[Kurye] \u00a7aKurye boh\u00e7as\u0131 teslim edildi ve i\u00e7inden 6 adet pi\u015fmi\u015f biftek \u00e7\u0131kt\u0131!"));
+                                      }
+                                  }
                                 p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
                                 logActivity(p.getGameProfile().getName() + " teslimati tamamladi! Yol: " + (int) totalDist + "m, Kazanc: " + (int) ucret + "\u20ba (" + pm.dagitimLoc.name + " -> " + pm.musteriLoc.name + ")");
                                 
@@ -1396,6 +1454,16 @@ public class CourierMod implements ModInitializer {
                 }
 
                 if (pm.state.equals("TOPLAMA")) {
+                    if (pm.isPlayerJob && pm.customerId != null) {
+                        ServerPlayerEntity customer = server.getPlayerManager().getPlayer(pm.customerId);
+                        if (customer != null) {
+                            pm.dagitimLoc.x = customer.getBlockPos().getX();
+                            pm.dagitimLoc.y = customer.getBlockPos().getY();
+                            pm.dagitimLoc.z = customer.getBlockPos().getZ();
+                            pm.dagitimLoc.world = customer.getWorld().getRegistryKey().getValue().toString();
+                        }
+                    }
+
                     if (p.getWorld().getRegistryKey().getValue().toString().equals(pm.dagitimLoc.world)) {
                         double dist = Math.sqrt(pPos.getSquaredDistance(pm.dagitimLoc.x, pm.dagitimLoc.y, pm.dagitimLoc.z));
                         if (dist < 5.0) {
@@ -1407,6 +1475,15 @@ public class CourierMod implements ModInitializer {
                             if (p.getWorld() instanceof ServerWorld && pm.taxiVillagerId != null) {
                                 Entity v = ((ServerWorld)p.getWorld()).getEntity(pm.taxiVillagerId);
                                 if (v != null) v.discard();
+                            }
+                            
+                            if (pm.isPlayerJob && pm.customerId != null) {
+                                ServerPlayerEntity customer = server.getPlayerManager().getPlayer(pm.customerId);
+                                if (customer != null) {
+                                    customer.startRiding(p, true);
+                                    p.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityPassengersSetS2CPacket(p));
+                                    customer.sendMessage(Text.literal("§6[Taksi] §aTaksiye bindiniz!"));
+                                }
                             }
                             
                             MutableText message = Text.literal(P + "\u00a7aM\u00fc\u015fteri araca bindi! \u00a7eHedef: ");
@@ -1426,22 +1503,45 @@ public class CourierMod implements ModInitializer {
                                 if (tickCounter % 2 == 0) p.sendMessage(Text.literal(P + "\u00a7cM\u00fc\u015fteriyi hedefe Automobility arac\u0131yla g\u00f6t\u00fcrmelisin!"), true);
                                 continue;
                             }
-                            pm.state = "TAMAMLANIYOR";
-                            pm.ticksAtTarget = 0;
-                            if (p.getWorld() instanceof ServerWorld) {
-                                ServerWorld world = (ServerWorld) p.getWorld();
-                                VillagerEntity villager = EntityType.VILLAGER.create(world);
-                                if (villager != null) {
-                                    villager.refreshPositionAndAngles(pm.musteriLoc.x + 0.5, pm.musteriLoc.y, pm.musteriLoc.z + 0.5, 0, 0);
-                                    villager.setAiDisabled(true);
-                                    villager.setInvulnerable(true);
-                                    villager.setCustomName(Text.literal("\u00a7eTaksi M\u00fc\u015fterisi"));
-                                    villager.setCustomNameVisible(true);
-                                    world.spawnEntity(villager);
-                                    pm.taxiVillagerId = villager.getUuid();
+                            if (!pm.isPlayerJob) {
+                                pm.state = "TAMAMLANIYOR";
+                                pm.ticksAtTarget = 0;
+                                if (p.getWorld() instanceof ServerWorld) {
+                                    ServerWorld world = (ServerWorld) p.getWorld();
+                                    VillagerEntity villager = EntityType.VILLAGER.create(world);
+                                    if (villager != null) {
+                                        villager.refreshPositionAndAngles(pm.musteriLoc.x + 0.5, pm.musteriLoc.y, pm.musteriLoc.z + 0.5, 0, 0);
+                                        villager.setAiDisabled(true);
+                                        villager.setInvulnerable(true);
+                                        villager.setCustomName(Text.literal("\u00a7eTaksi M\u00fc\u015fterisi"));
+                                        villager.setCustomNameVisible(true);
+                                        world.spawnEntity(villager);
+                                        pm.taxiVillagerId = villager.getUuid();
+                                    }
                                 }
+                                p.sendMessage(Text.literal(P + "\u00a7eM\u00fc\u015fteri iniyor, l\u00fctfen bekle..."));
+                            } else {
+                                double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
+                                double ucret = Math.floor(totalDist * data.taksiCarpan);
+                                if (ucret < MIN_UCRET) ucret = MIN_UCRET;
+                                
+                                ServerPlayerEntity customer = server.getPlayerManager().getPlayer(pm.customerId);
+                                if (customer != null) {
+                                    server.getCommandManager().executeWithPrefix(server.getCommandSource(), "eco take " + customer.getName().getString() + " " + (int) ucret);
+                                    customer.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cTaksi ücreti olarak " + (int) ucret + " kesildi."));
+                                    customer.stopRiding();
+                            p.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityPassengersSetS2CPacket(p));
+                                    customer.sendMessage(Text.literal("§6[Taksi] §aHedefe ulaştınız. Yolculuk bitti."));
+                                    if (pm.musteriLoc != null) {
+                                        customer.teleport(customer.getServerWorld(), pm.musteriLoc.x, pm.musteriLoc.y + 1, pm.musteriLoc.z, customer.getYaw(), customer.getPitch());
+                                    }
+                                }
+                                
+                                addPlayerPara(server, p, (int) ucret);
+                                addXp(p, "TAKSI", 50.0);
+                                activeMissions.remove(p.getUuid());
+                                p.sendMessage(Text.literal("§6[Taksi] §aMüşteriyi hedefine ulaştırdınız. Kazanılan: " + (int) ucret + "TL"));
                             }
-                            p.sendMessage(Text.literal(P + "\u00a7eM\u00fc\u015fteri iniyor, l\u00fctfen bekle..."));
                         }
                     }
                 } else if (pm.state.equals("TAMAMLANIYOR")) {

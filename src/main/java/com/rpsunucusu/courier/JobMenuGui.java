@@ -92,10 +92,7 @@ public class JobMenuGui extends SimpleGui {
         
         CourierMod.PlayerMission pm = new CourierMod.PlayerMission();
         pm.type = jobType;
-        pm.state = "ALINIYOR";
-        if (jobType.equals("TAKSI")) {
-            pm.state = "TOPLAMA";
-        }
+        pm.state = "TOPLAMA";
         pm.isPlayerJob = true;
         pm.customerId = req.playerId;
         pm.missionStartTime = System.currentTimeMillis();
@@ -118,6 +115,16 @@ public class JobMenuGui extends SimpleGui {
         activeMissions.put(player.getUuid(), pm);
         callRequests.remove(req);
         
+        // Müşteriye bildirim gönder
+        ServerPlayerEntity customer = player.getServer().getPlayerManager().getPlayer(req.playerId);
+        if (customer != null) {
+            if (jobType.equals("TAKSI")) {
+                customer.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §a" + player.getGameProfile().getName() + " isimli taksici çağrınızı kabul etti! Geliyor..."));
+            } else {
+                customer.sendMessage(net.minecraft.text.Text.literal("§6[Kurye] §a" + player.getGameProfile().getName() + " isimli kurye çağrınızı kabul etti!"));
+            }
+        }
+        
         if (jobType.equals("KURYE")) {
             player.sendMessage(Text.literal("§aÇağrıyı kabul ettin! Önce paketi almak için Dağıtım Merkezine gidin. §eHedef: " + pm.dagitimLoc.name));
         } else {
@@ -136,10 +143,7 @@ public class JobMenuGui extends SimpleGui {
     private void acceptNpcRequest(CourierMod.MissionPair pair) {
         CourierMod.PlayerMission pm = new CourierMod.PlayerMission();
         pm.type = jobType;
-        pm.state = "ALINIYOR"; // "TOPLAMA" for Taksi usually, but let's see. Wait, in original it's "TOPLAMA".
-        if (jobType.equals("TAKSI")) {
-            pm.state = "TOPLAMA";
-        }
+        pm.state = "TOPLAMA";
         pm.isPlayerJob = false;
         pm.dagitimLoc = pair.dagitim;
         pm.musteriLoc = pair.musteri;

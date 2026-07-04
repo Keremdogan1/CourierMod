@@ -26,6 +26,7 @@ public class CourierModClient implements ClientModInitializer {
     
     public static boolean taksiMapActive = false;
     public static long taksiRequestedTime = 0;
+    public static String taksiRequestSuccessMsg = "";
 
     @Override
     public void onInitializeClient() {
@@ -35,35 +36,48 @@ public class CourierModClient implements ClientModInitializer {
             net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterRender(screen).register((screen1, drawContext, mouseX, mouseY, tickDelta) -> {
                 if (taksiMapActive && screen1.getClass().getName().contains("journeymap")) {
                     net.minecraft.client.font.TextRenderer tr = client.textRenderer;
-                    
+                    com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+                    com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+                    com.mojang.blaze3d.systems.RenderSystem.disableDepthTest();
+                    drawContext.getMatrices().push();
+                    drawContext.getMatrices().translate(0, 0, 1000);
+
+                    int baseY = scaledHeight - 60;
+
                     if (taksiRequestedTime > 0) {
-                        // Request sent, showing confirmation and counting down to 3 seconds
-                        String msg = "\u00a7a\u00a7l\u0130ste\u011finiz taksicilere iletildi!";
-                        drawContext.getMatrices().push();
-                        drawContext.getMatrices().translate(0, 0, 500); // high Z index
-                        drawContext.drawCenteredTextWithShadow(tr, msg, scaledWidth / 2, 20, 0xFFFFFF);
-                        drawContext.getMatrices().pop();
+                        String msg = taksiRequestSuccessMsg.isEmpty() ? "§a§lİsteğiniz taksicilere iletildi!" : taksiRequestSuccessMsg;
+                        int w = tr.getWidth(msg);
+                        drawContext.fill(scaledWidth / 2 - w / 2 - 10, baseY, scaledWidth / 2 + w / 2 + 10, baseY + 20, 0xAA000000);
+                        drawContext.drawCenteredTextWithShadow(tr, msg, scaledWidth / 2, baseY + 6, 0xFFFFFF);
                         
                         if (System.currentTimeMillis() - taksiRequestedTime > 3000) {
                             taksiMapActive = false;
                             taksiRequestedTime = 0;
+                            taksiRequestSuccessMsg = "";
+                            CourierModJMPlugin.hideWaypoints();
                             client.execute(() -> client.setScreen(null)); // Close the map
                         }
                     } else {
                         // Waiting for selection
-                        String msg = "\u00a7e\u00a7lGitmek \u0130stedi\u011finiz Noktay\u0131 Se\u00e7in!";
-                        // Draw with high z-index
-                        drawContext.getMatrices().push();
-                        drawContext.getMatrices().translate(0, 0, 500); // high Z index
-                        drawContext.drawCenteredTextWithShadow(tr, msg, scaledWidth / 2, 20, 0xFFFFFF);
-                        drawContext.getMatrices().pop();
+                        String msg = "§e§lGitmek İstediğiniz Noktayı Seçin!";
+                        int w = tr.getWidth(msg);
+                        drawContext.fill(scaledWidth / 2 - w / 2 - 10, baseY, scaledWidth / 2 + w / 2 + 10, baseY + 20, 0xAA000000);
+                        drawContext.drawCenteredTextWithShadow(tr, msg, scaledWidth / 2, baseY + 6, 0xFFFFFF);
                     }
-                } else if (taksiMapActive) {
-                    // If map is closed manually by user pressing ESC
-                    taksiMapActive = false;
-                    taksiRequestedTime = 0;
+                    
+                    drawContext.getMatrices().pop();
+                    com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
+                    com.mojang.blaze3d.systems.RenderSystem.disableBlend();
                 }
             });
+        });
+        
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (taksiMapActive && (client.currentScreen == null || !client.currentScreen.getClass().getName().contains("journeymap"))) {
+                taksiMapActive = false;
+                taksiRequestedTime = 0;
+                CourierModJMPlugin.hideWaypoints();
+            }
         });
 
         ClientPlayNetworking.registerGlobalReceiver(new Identifier("couriermod", "taksi_sync"), (client, handler, buf, responseSender) -> {
@@ -85,8 +99,24 @@ public class CourierModClient implements ClientModInitializer {
                 System.out.println("[CourierMod] Received open_taksi_map packet!");
                 taksiMapActive = true;
                 taksiRequestedTime = 0;
+                CourierModJMPlugin.showWaypoints();
                 CourierModJMPlugin.openFullscreenMap();
             });
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(new Identifier("couriermod", "taksi_request_success"), (client, handler, buf, responseSender) -> {
+            String msg = buf.readString();
+            client.execute(() -> {
+                if (taksiMapActive) {
+                    taksiRequestSuccessMsg = msg;
+                    taksiRequestedTime = System.currentTimeMillis();
+                } else {
+                    if (client.player != null) {
+                        client.player.sendMessage(net.minecraft.text.Text.literal(msg), false);
+                    }
+                }
+            });
+        });
+        
     }
 }

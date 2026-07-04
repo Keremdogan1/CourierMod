@@ -13,6 +13,7 @@ import net.minecraft.client.MinecraftClient;
 public class CourierModJMPlugin implements IClientPlugin {
 
     private static IClientAPI jmAPI;
+    private static java.util.List<MarkerOverlay> activeMarkers = new java.util.ArrayList<>();
 
     @Override
     public void initialize(IClientAPI api) {
@@ -35,10 +36,11 @@ public class CourierModJMPlugin implements IClientPlugin {
         
         try {
             jmAPI.removeAll("couriermod");
+            activeMarkers.clear();
             
             for (CourierModClient.LocationData loc : CourierModClient.taksiNoktalari) {
                 // Using a vanilla map texture instead of a JourneyMap one to avoid missing texture issues
-                MapImage icon = new MapImage(new Identifier("minecraft", "textures/item/map.png"), 32, 32);
+                MapImage icon = new MapImage(new Identifier("minecraft", "textures/item/map.png"), 64, 64);
                 icon.setAnchorX(icon.getDisplayWidth() / 2.0)
                     .setAnchorY(icon.getDisplayHeight() / 2.0);
 
@@ -69,8 +71,7 @@ public class CourierModJMPlugin implements IClientPlugin {
                         MinecraftClient.getInstance().execute(() -> {
                             if (MinecraftClient.getInstance().player != null && CourierModClient.taksiRequestedTime == 0) {
                                 MinecraftClient.getInstance().player.networkHandler.sendCommand("taksi cagir " + loc.name);
-                                // Mark the request time so we can show "Iletildi" and close after 3s
-                                CourierModClient.taksiRequestedTime = System.currentTimeMillis();
+                                // Wait for server to respond with taksi_request_success packet
                             }
                         });
                         return true;
@@ -79,10 +80,27 @@ public class CourierModJMPlugin implements IClientPlugin {
                     public void onOverlayMenuPopup(journeymap.client.api.util.UIState mapState, java.awt.geom.Point2D.Double mousePosition, net.minecraft.util.math.BlockPos blockPosition, journeymap.client.api.display.ModPopupMenu modPopupMenu) {}
                 });
                 
-                jmAPI.show(marker);
+                activeMarkers.add(marker);
+                if (CourierModClient.taksiMapActive) {
+                    jmAPI.show(marker);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+        public static void showWaypoints() {
+        if (jmAPI == null) return;
+        for (MarkerOverlay marker : activeMarkers) {
+            try { jmAPI.show(marker); } catch (Exception e) {}
+        }
+    }
+
+    public static void hideWaypoints() {
+        if (jmAPI == null) return;
+        for (MarkerOverlay marker : activeMarkers) {
+            try { jmAPI.remove(marker); } catch (Exception e) {}
         }
     }
 
@@ -96,6 +114,24 @@ public class CourierModJMPlugin implements IClientPlugin {
             Class<?> fullscreenClass = Class.forName("journeymap.client.ui.fullscreen.Fullscreen");
             Object fullscreenInstance = fullscreenClass.getDeclaredConstructor().newInstance();
             MinecraftClient.getInstance().setScreen((net.minecraft.client.gui.screen.Screen) fullscreenInstance);
+            
+            // Try to force Day mode
+            try {
+                for (java.lang.reflect.Method m : fullscreenInstance.getClass().getMethods()) {
+                    if (m.getParameterCount() == 1 && m.getParameterTypes()[0].getName().endsWith("DisplayType")) {
+                        Class<?> enumClass = m.getParameterTypes()[0];
+                        for (Object enumConstant : enumClass.getEnumConstants()) {
+                            if (enumConstant.toString().equalsIgnoreCase("Day")) {
+                                m.invoke(fullscreenInstance, enumConstant);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                // Ignore if not possible
+            }
+            
             System.out.println("[CourierMod] JourneyMap Fullscreen map opened successfully.");
         } catch (ClassNotFoundException e) {
             System.err.println("[CourierMod] JourneyMap Fullscreen class not found. Is JourneyMap installed?");
