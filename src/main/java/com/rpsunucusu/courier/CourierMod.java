@@ -1382,7 +1382,8 @@ public class CourierMod implements ModInitializer {
                                 continue;
                             }
                             pm.state = "TESLIMAT";
-                            ItemStack item = new ItemStack(Items.BUNDLE);
+                              pm.missionStartTime = System.currentTimeMillis();
+                              ItemStack item = new ItemStack(Items.BUNDLE);
                             item.setCustomName(Text.literal("\u00a7dM\u00fch\u00fcrl\u00fc Kurye Boh\u00e7as\u0131"));
                             p.getInventory().insertStack(item);
                             MutableText message = Text.literal(P + "\u00a7aPaketi ald\u0131n! \u015eimdi ");
@@ -1427,7 +1428,7 @@ public class CourierMod implements ModInitializer {
                                 long completionElapsedMillis = System.currentTimeMillis() - pm.missionStartTime;
                                 double completionElapsedSeconds = completionElapsedMillis / 1000.0;
                                 if (completionElapsedSeconds < 1) completionElapsedSeconds = 1;
-                                double speedFactor = (totalDist / completionElapsedSeconds) / 4.0;
+                                double speedFactor = (totalDist / completionElapsedSeconds) / 5.0;
                                 if (speedFactor < 0.5) speedFactor = 0.5;
                                 if (speedFactor > 2.0) speedFactor = 2.0;
                                 double gainedXp = (totalDist * 0.5) * speedFactor;
@@ -1470,7 +1471,8 @@ public class CourierMod implements ModInitializer {
                                 continue;
                             }
                             pm.state = "TESLIMAT";
-                            if (p.getWorld() instanceof ServerWorld && pm.taxiVillagerId != null) {
+                              pm.missionStartTime = System.currentTimeMillis();
+                              if (p.getWorld() instanceof ServerWorld && pm.taxiVillagerId != null) {
                                 Entity v = ((ServerWorld)p.getWorld()).getEntity(pm.taxiVillagerId);
                                 if (v != null) v.discard();
                             }
@@ -1556,7 +1558,7 @@ public class CourierMod implements ModInitializer {
                         long completionElapsedMillis = System.currentTimeMillis() - pm.missionStartTime;
                         double completionElapsedSeconds = completionElapsedMillis / 1000.0;
                         if (completionElapsedSeconds < 1) completionElapsedSeconds = 1;
-                        double speedFactor = (totalDist / completionElapsedSeconds) / 4.0;
+                        double speedFactor = (totalDist / completionElapsedSeconds) / 5.0;
                         if (speedFactor < 0.5) speedFactor = 0.5;
                         if (speedFactor > 2.0) speedFactor = 2.0;
                         double gainedXp = (totalDist * 0.5) * speedFactor;
