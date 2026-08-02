@@ -13,7 +13,7 @@
 			"com.rpsunucusu.courier.CourierMod"
 		],
 		"client": [
-			"com.rpsunucusu.courier.client.CourierModClient"
+			"com.rpsunucusu.courier.client.CourierNavigationClient"
 		],
 		"journeymap": [
 			"com.rpsunucusu.courier.client.CourierModJMPlugin"
