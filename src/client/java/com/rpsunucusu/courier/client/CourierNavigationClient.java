@@ -67,6 +67,17 @@ public class CourierNavigationClient implements ClientModInitializer {
 
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
 			dispatcher.register(ClientCommandManager.literal("navigasyon")
+				.executes(context -> {
+					navigasyonSecimiBekleniyor = true;
+					context.getSource().sendFeedback(Text.literal("§eHarita aciliyor... Lutfen gitmek istediginiz yere §a§lSOL TIKLAYIN§e!"));
+					new Thread(() -> {
+						try { Thread.sleep(1500); } catch (Exception e) {}
+						MinecraftClient.getInstance().execute(() -> {
+							CourierModJMPlugin.openFullscreenMap();
+						});
+					}).start();
+					return 1;
+				})
 				.then(ClientCommandManager.argument("x", IntegerArgumentType.integer())
 					.then(ClientCommandManager.argument("y", IntegerArgumentType.integer())
 						.then(ClientCommandManager.argument("z", IntegerArgumentType.integer())
@@ -74,12 +85,7 @@ public class CourierNavigationClient implements ClientModInitializer {
 								int x = IntegerArgumentType.getInteger(context, "x");
 								int y = IntegerArgumentType.getInteger(context, "y");
 								int z = IntegerArgumentType.getInteger(context, "z");
-								nihaiHedef = new BlockPos(x, y, z);
-								aktifRota.clear();
-								if (MinecraftClient.getInstance().player != null) {
-									dinamikRotaHesapla();
-									context.getSource().sendFeedback(Text.literal("Navigasyon hedefe yonlendirildi: " + x + ", " + y + ", " + z).formatted(Formatting.GREEN));
-								}
+								baslatNavigasyon(new BlockPos(x, y, z));
 								return 1;
 							})
 						)
@@ -89,6 +95,7 @@ public class CourierNavigationClient implements ClientModInitializer {
 					.executes(context -> {
 						nihaiHedef = null;
 						aktifRota.clear();
+						navigasyonSecimiBekleniyor = false;
 						context.getSource().sendFeedback(Text.literal("Navigasyon kapatildi!").formatted(Formatting.RED));
 						return 1;
 					})
