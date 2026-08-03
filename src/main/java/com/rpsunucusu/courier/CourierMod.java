@@ -457,6 +457,11 @@ public class CourierMod implements ModInitializer {
                 .then(CommandManager.argument("hedef_adi", com.mojang.brigadier.arguments.StringArgumentType.greedyString()).executes(this::playerTaksiCagir)))
             .then(CommandManager.literal("iptal-cagri").executes(this::cancelCallTaksi))
         );
+
+        // Alias for testing if '/taksi cagir' is blocked by something
+        dispatcher.register(CommandManager.literal("taksicagir")
+            .executes(this::listTaksiHedefleri)
+        );
     }
 
     private int helpCommand(CommandContext<ServerCommandSource> context) {
@@ -795,8 +800,11 @@ public class CourierMod implements ModInitializer {
     private int listTaksiHedefleri(CommandContext<net.minecraft.server.command.ServerCommandSource> context) {
         net.minecraft.server.network.ServerPlayerEntity p = context.getSource().getPlayer();
         if (p == null) return 0;
+        
+        p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §aHarita açılıyor..."));
+        
         if (data.taksiNoktalari.isEmpty()) {
-            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cHeniç taksi noktası yok."));
+            p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cHiç taksi noktası eklenmemiş!"));
             return 0;
         }
         
