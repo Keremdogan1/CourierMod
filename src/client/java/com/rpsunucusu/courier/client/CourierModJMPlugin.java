@@ -147,29 +147,35 @@ public class CourierModJMPlugin implements IClientPlugin {
 
     public static void openFullscreenMap() {
         MinecraftClient client = MinecraftClient.getInstance();
-        boolean opened = false;
-        try {
-            for (net.minecraft.client.option.KeyBinding kb : client.options.allKeys) {
-                if (kb.getCategory().toLowerCase().contains("journeymap") || kb.getTranslationKey().toLowerCase().contains("journeymap")) {
-                    if (kb.getTranslationKey().toLowerCase().contains("fullscreen") || kb.getTranslationKey().toLowerCase().contains("map")) {
-                        // Simulate key press
-                        kb.setPressed(true);
-                        kb.setPressed(false);
-                        // Some mods check timesPressed to toggle
-                        net.minecraft.client.option.KeyBinding.onKeyPressed(((net.minecraft.client.util.InputUtil.Key)((Object)kb.getDefaultKey())));
-                        opened = true;
-                        break;
-                    }
-                }
-            }
-        } catch (Exception e) {}
-
-        if (!opened) {
-            // Fallback to J key
-            net.minecraft.client.option.KeyBinding.onKeyPressed(net.minecraft.client.util.InputUtil.Type.KEYSYM.createFromCode(org.lwjgl.glfw.GLFW.GLFW_KEY_J));
-        }
         
-        fallbackMessage();
+        new Thread(() -> {
+            try {
+                Thread.sleep(500); // Wait for chat screen to fully close
+            } catch (Exception e) {}
+            
+            client.execute(() -> {
+                boolean opened = false;
+                try {
+                    for (net.minecraft.client.option.KeyBinding kb : client.options.allKeys) {
+                        if (kb.getCategory().toLowerCase().contains("journeymap") || kb.getTranslationKey().toLowerCase().contains("journeymap")) {
+                            if (kb.getTranslationKey().toLowerCase().contains("fullscreen") || kb.getTranslationKey().toLowerCase().contains("map")) {
+                                kb.setPressed(true);
+                                kb.setPressed(false);
+                                net.minecraft.client.option.KeyBinding.onKeyPressed(((net.minecraft.client.util.InputUtil.Key)((Object)kb.getDefaultKey())));
+                                opened = true;
+                                break;
+                            }
+                        }
+                    }
+                } catch (Exception e) {}
+
+                if (!opened) {
+                    net.minecraft.client.option.KeyBinding.onKeyPressed(net.minecraft.client.util.InputUtil.Type.KEYSYM.createFromCode(org.lwjgl.glfw.GLFW.GLFW_KEY_J));
+                }
+                
+                fallbackMessage();
+            });
+        }).start();
     }
 
     private static void tryAlternativeOpen() {
