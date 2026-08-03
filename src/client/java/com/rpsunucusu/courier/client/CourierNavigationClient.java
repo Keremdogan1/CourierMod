@@ -128,22 +128,22 @@ public class CourierNavigationClient implements ClientModInitializer {
 
 		// --- NAVİGASYON OK RENDER MOTORU ---
 		sayac++;
-		if (sayac % 10 == 0) { // Saniyede 2 kere partikul ciz, ortaligi fazla doldurmasin
+		if (sayac % 3 == 0) { // Daha sık çiz
 			for (int i = 0; i < aktifRota.size() - 1; i++) {
 				BlockPos guncel = aktifRota.get(i);
 				BlockPos sonraki = aktifRota.get(i + 1);
 
-				// Sadece oyuncunun yakınındaki (yüklü) alandaki okları çiz (Performans için)
-				if (oyuncuPos.getManhattanDistance(guncel) > 60) continue; // Sadece en yakindaki 60 blogu ciz
+				// Uzaklık limitini artırdık
+				if (oyuncuPos.getManhattanDistance(guncel) > 150) continue;
 
 				Vec3d yonVektoru = new Vec3d(sonraki.getX() - guncel.getX(), 0, sonraki.getZ() - guncel.getZ()).normalize();
 
 				client.world.addParticle(
-						ParticleTypes.TOTEM_OF_UNDYING,
+						ParticleTypes.END_ROD,
 						guncel.getX() + 0.5 + yonVektoru.x * 0.2,
 						guncel.getY() + 1.2,
 						guncel.getZ() + 0.5 + yonVektoru.z * 0.2,
-						yonVektoru.x * 0.15, 0, yonVektoru.z * 0.15
+						0, 0, 0 // Hız sıfır
 				);
 			}
 		}
@@ -245,7 +245,6 @@ public class CourierNavigationClient implements ClientModInitializer {
 		// Eğer nihai hedefe henüz varamadıysak ama yüklü chunkların son sınırına kadar yol bulabildiysek rotayı oraya kadar çiz
 		if (!ulasilanEnUzakNokta.equals(baslangic)) {
 			aktifRota = rotayiYenidenKur(neredenGeldi, ulasilanEnUzakNokta);
-			client.player.sendMessage(Text.literal("Yol tarifi guncelleniyor...").formatted(Formatting.AQUA), true);
 		} else {
 			// Eğer bulunulan yerde hiç yol yoksa uyarı ver
 			if (aktifRota.isEmpty()) {

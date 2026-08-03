@@ -33,21 +33,41 @@ public class CourierModJMPlugin implements IClientPlugin {
 
     @Override
     public void onEvent(journeymap.client.api.event.ClientEvent event) {
-        if (CourierNavigationClient.navigasyonSecimiBekleniyor && event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent) {
+        if (event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent) {
             journeymap.client.api.event.FullscreenMapEvent.ClickEvent clickEvent = (journeymap.client.api.event.FullscreenMapEvent.ClickEvent) event;
-            // Sol veya sag tik fark etmez (farkli isletim sistemi / mouse ayarlarini hesaba katarak)
             net.minecraft.util.math.BlockPos pos = clickEvent.getLocation();
-            CourierNavigationClient.navigasyonSecimiBekleniyor = false;
-            
-            MinecraftClient.getInstance().execute(() -> {
-                CourierNavigationClient.baslatNavigasyon(pos);
-                if (MinecraftClient.getInstance().currentScreen != null) {
-                    MinecraftClient.getInstance().setScreen(null); // Haritayi kapat
+
+            if (CourierNavigationClient.navigasyonSecimiBekleniyor) {
+                CourierNavigationClient.navigasyonSecimiBekleniyor = false;
+                
+                MinecraftClient.getInstance().execute(() -> {
+                    CourierNavigationClient.baslatNavigasyon(pos);
+                    if (MinecraftClient.getInstance().currentScreen != null) {
+                        MinecraftClient.getInstance().setScreen(null); // Haritayi kapat
+                    }
+                });
+                
+                if (event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre) {
+                    event.cancel();
                 }
-            });
-            
-            if (event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre) {
-                event.cancel();
+            } 
+            else if (CourierModClient.taksiMapActive) {
+                for (CourierModClient.LocationData loc : CourierModClient.taksiNoktalari) {
+                    double dist = Math.sqrt(Math.pow(loc.x - pos.getX(), 2) + Math.pow(loc.z - pos.getZ(), 2));
+                    if (dist < 10) { // 10 blok yakınına tiklandiysa
+                        MinecraftClient.getInstance().execute(() -> {
+                            if (MinecraftClient.getInstance().player != null) {
+                                MinecraftClient.getInstance().player.sendMessage(net.minecraft.text.Text.literal("§eTaksi noktasina tiklandi: " + loc.name), false);
+                                MinecraftClient.getInstance().player.networkHandler.sendCommand("taksi cagir " + loc.name);
+                            }
+                        });
+                        
+                        if (event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre) {
+                            event.cancel();
+                        }
+                        return; // Sadece bir noktayi tetikle
+                    }
+                }
             }
         }
     }
