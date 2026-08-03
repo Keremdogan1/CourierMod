@@ -28,7 +28,22 @@ public class CourierModJMPlugin implements IClientPlugin {
 
     @Override
     public void onEvent(journeymap.client.api.event.ClientEvent event) {
-        // Handle events if needed
+        if (CourierNavigationClient.navigasyonSecimiBekleniyor && event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre) {
+            journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre clickEvent = (journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre) event;
+            if (clickEvent.getButton() == 0) { // Left click
+                net.minecraft.util.math.BlockPos pos = clickEvent.getLocation();
+                CourierNavigationClient.navigasyonSecimiBekleniyor = false;
+                
+                MinecraftClient.getInstance().execute(() -> {
+                    CourierNavigationClient.baslatNavigasyon(pos);
+                    if (MinecraftClient.getInstance().currentScreen != null) {
+                        MinecraftClient.getInstance().setScreen(null); // Close map
+                    }
+                });
+                
+                event.cancel();
+            }
+        }
     }
 
     public static void refreshWaypoints() {

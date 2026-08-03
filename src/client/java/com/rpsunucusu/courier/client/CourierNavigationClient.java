@@ -33,6 +33,16 @@ public class CourierNavigationClient implements ClientModInitializer {
 	private static BlockPos nihaiHedef = null;
 	private static int sayac = 0;
 	private static int kontrolZamanlayici = 0;
+	public static boolean navigasyonSecimiBekleniyor = false;
+
+	public static void baslatNavigasyon(BlockPos hedef) {
+		nihaiHedef = hedef;
+		aktifRota.clear();
+		if (MinecraftClient.getInstance().player != null) {
+			dinamikRotaHesapla();
+			MinecraftClient.getInstance().player.sendMessage(Text.literal("Navigasyon hedefe yonlendirildi: " + hedef.getX() + ", " + hedef.getY() + ", " + hedef.getZ()).formatted(Formatting.GREEN), false);
+		}
+	}
 
 	@Override
 	public void onInitializeClient() {
