@@ -187,35 +187,44 @@ public class CourierNavigationClient implements ClientModInitializer {
 					continue;
 				}
 
-				if (!yolMu(world, komsuPos)) {
+				boolean isYol = yolMu(world, komsuPos);
+				if (!isYol) {
 					if (yolMu(world, komsuPos.up())) {
 						komsuPos = komsuPos.up();
+						isYol = true;
 					} else if (yolMu(world, komsuPos.down())) {
 						komsuPos = komsuPos.down();
-					} else {
-						continue;
+						isYol = true;
 					}
 				}
 
+				double stepCost = 1.0;
 				BlockState state = world.getBlockState(komsuPos);
 				String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
-				double stepCost = 1.0;
 
-				if (blockId.contains("asphalt_pattern") && state.contains(Properties.HORIZONTAL_FACING)) {
-					Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
-					if (yolYonu == yon.getOpposite()) {
-						continue; // Ters yone (karsi seride) gecis yasak
-					} else if (yolYonu == yon) {
-						stepCost = 2.0; // Ok yonunde cizgi uzerinde gitmek
+				if (isYol) {
+					if (blockId.contains("asphalt_pattern") && state.contains(Properties.HORIZONTAL_FACING)) {
+						Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
+						if (yolYonu == yon.getOpposite()) {
+							continue; // Ters yone (karsi seride) gecis yasak
+						} else if (yolYonu == yon) {
+							stepCost = 2.0; // Ok yonunde cizgi uzerinde gitmek
+						} else {
+							stepCost = 20.0; // Cizgiyi enlemesine kesmek (serit degistirmek / karsi seride cikmak buyuk ceza)
+						}
+					} else if (state.contains(Properties.HORIZONTAL_FACING)) {
+						Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
+						if (yolYonu == yon.getOpposite()) {
+							continue; // Genel ters yon yasagi
+						}
+						stepCost = 1.0;
+					}
+				} else {
+					if (getManhattanMesafe(komsuPos, baslangic) <= 25 || getManhattanMesafe(komsuPos, nihaiHedef) <= 25) {
+						stepCost = 50.0; // Yuksek ceza ile arazide yurumeye izin ver
 					} else {
-						stepCost = 20.0; // Cizgiyi enlemesine kesmek (serit degistirmek / karsi seride cikmak buyuk ceza)
+						continue; // Arazide yurumek sadece baslangic ve bitiste 25 blok sinirinda serbest
 					}
-				} else if (state.contains(Properties.HORIZONTAL_FACING)) {
-					Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
-					if (yolYonu == yon.getOpposite()) {
-						continue; // Genel ters yon yasagi
-					}
-					stepCost = 1.0;
 				}
 
 				double gecici_gSkor = gSkor.getOrDefault(mevcut.pos, Double.MAX_VALUE) + stepCost;

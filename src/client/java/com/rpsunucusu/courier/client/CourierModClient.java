@@ -27,6 +27,7 @@ public class CourierModClient implements ClientModInitializer {
     public static boolean taksiMapActive = false;
     public static long taksiRequestedTime = 0;
     public static String taksiRequestSuccessMsg = "";
+    public static int taksiMapGraceTicks = 0;
 
     @Override
     public void onInitializeClient() {
@@ -34,7 +35,7 @@ public class CourierModClient implements ClientModInitializer {
         
         net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterRender(screen).register((screen1, drawContext, mouseX, mouseY, tickDelta) -> {
-                if (taksiMapActive && screen1.getClass().getName().contains("journeymap")) {
+                if (taksiMapActive && screen1.getClass().getName().toLowerCase().contains("journeymap")) {
                     net.minecraft.client.font.TextRenderer tr = client.textRenderer;
                     com.mojang.blaze3d.systems.RenderSystem.enableBlend();
                     com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
@@ -73,7 +74,9 @@ public class CourierModClient implements ClientModInitializer {
         });
         
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (taksiMapActive && (client.currentScreen == null || !client.currentScreen.getClass().getName().contains("journeymap"))) {
+            if (taksiMapGraceTicks > 0) {
+                taksiMapGraceTicks--;
+            } else if (taksiMapActive && (client.currentScreen == null || !client.currentScreen.getClass().getName().toLowerCase().contains("journeymap"))) {
                 taksiMapActive = false;
                 taksiRequestedTime = 0;
                 CourierModJMPlugin.hideWaypoints();
@@ -98,6 +101,7 @@ public class CourierModClient implements ClientModInitializer {
             client.execute(() -> {
                 System.out.println("[CourierMod] Received open_taksi_map packet!");
                 taksiMapActive = true;
+                taksiMapGraceTicks = 40; // 2 seconds grace period to prevent premature cancel
                 taksiRequestedTime = 0;
                 CourierModJMPlugin.showWaypoints();
                 CourierModJMPlugin.openFullscreenMap();

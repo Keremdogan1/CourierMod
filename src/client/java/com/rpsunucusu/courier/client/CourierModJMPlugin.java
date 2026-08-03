@@ -28,19 +28,20 @@ public class CourierModJMPlugin implements IClientPlugin {
 
     @Override
     public void onEvent(journeymap.client.api.event.ClientEvent event) {
-        if (CourierNavigationClient.navigasyonSecimiBekleniyor && event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre) {
-            journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre clickEvent = (journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre) event;
-            if (clickEvent.getButton() == 0) { // Left click
-                net.minecraft.util.math.BlockPos pos = clickEvent.getLocation();
-                CourierNavigationClient.navigasyonSecimiBekleniyor = false;
-                
-                MinecraftClient.getInstance().execute(() -> {
-                    CourierNavigationClient.baslatNavigasyon(pos);
-                    if (MinecraftClient.getInstance().currentScreen != null) {
-                        MinecraftClient.getInstance().setScreen(null); // Close map
-                    }
-                });
-                
+        if (CourierNavigationClient.navigasyonSecimiBekleniyor && event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent) {
+            journeymap.client.api.event.FullscreenMapEvent.ClickEvent clickEvent = (journeymap.client.api.event.FullscreenMapEvent.ClickEvent) event;
+            // Sol veya sag tik fark etmez (farkli isletim sistemi / mouse ayarlarini hesaba katarak)
+            net.minecraft.util.math.BlockPos pos = clickEvent.getLocation();
+            CourierNavigationClient.navigasyonSecimiBekleniyor = false;
+            
+            MinecraftClient.getInstance().execute(() -> {
+                CourierNavigationClient.baslatNavigasyon(pos);
+                if (MinecraftClient.getInstance().currentScreen != null) {
+                    MinecraftClient.getInstance().setScreen(null); // Haritayi kapat
+                }
+            });
+            
+            if (event instanceof journeymap.client.api.event.FullscreenMapEvent.ClickEvent.Pre) {
                 event.cancel();
             }
         }
