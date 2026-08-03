@@ -18,6 +18,11 @@ public class CourierModJMPlugin implements IClientPlugin {
     @Override
     public void initialize(IClientAPI api) {
         jmAPI = api;
+        try {
+            api.subscribe(getModId(), java.util.EnumSet.of(journeymap.client.api.event.ClientEvent.Type.MAP_CLICKED));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         System.out.println("[CourierMod] JourneyMap API initialized.");
     }
 

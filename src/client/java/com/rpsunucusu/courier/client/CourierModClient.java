@@ -27,7 +27,7 @@ public class CourierModClient implements ClientModInitializer {
     public static boolean taksiMapActive = false;
     public static long taksiRequestedTime = 0;
     public static String taksiRequestSuccessMsg = "";
-    public static int taksiMapGraceTicks = 0;
+    public static boolean wasInJourneyMap = false;
 
     @Override
     public void onInitializeClient() {
@@ -53,6 +53,7 @@ public class CourierModClient implements ClientModInitializer {
                         
                         if (System.currentTimeMillis() - taksiRequestedTime > 3000) {
                             taksiMapActive = false;
+                            wasInJourneyMap = false;
                             taksiRequestedTime = 0;
                             taksiRequestSuccessMsg = "";
                             CourierModJMPlugin.hideWaypoints();
@@ -74,12 +75,17 @@ public class CourierModClient implements ClientModInitializer {
         });
         
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (taksiMapGraceTicks > 0) {
-                taksiMapGraceTicks--;
-            } else if (taksiMapActive && (client.currentScreen == null || !client.currentScreen.getClass().getName().toLowerCase().contains("journeymap"))) {
-                taksiMapActive = false;
-                taksiRequestedTime = 0;
-                CourierModJMPlugin.hideWaypoints();
+            if (taksiMapActive) {
+                boolean inJM = client.currentScreen != null && client.currentScreen.getClass().getName().toLowerCase().contains("journeymap");
+                if (inJM) {
+                    wasInJourneyMap = true;
+                } else if (wasInJourneyMap) {
+                    // Cikti
+                    taksiMapActive = false;
+                    wasInJourneyMap = false;
+                    taksiRequestedTime = 0;
+                    CourierModJMPlugin.hideWaypoints();
+                }
             }
         });
 
@@ -101,7 +107,7 @@ public class CourierModClient implements ClientModInitializer {
             client.execute(() -> {
                 System.out.println("[CourierMod] Received open_taksi_map packet!");
                 taksiMapActive = true;
-                taksiMapGraceTicks = 40; // 2 seconds grace period to prevent premature cancel
+                wasInJourneyMap = false;
                 taksiRequestedTime = 0;
                 CourierModJMPlugin.showWaypoints();
                 CourierModJMPlugin.openFullscreenMap();

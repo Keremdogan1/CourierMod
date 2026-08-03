@@ -128,18 +128,18 @@ public class CourierNavigationClient implements ClientModInitializer {
 
 		// --- NAVİGASYON OK RENDER MOTORU ---
 		sayac++;
-		if (sayac % 5 == 0) {
+		if (sayac % 10 == 0) { // Saniyede 2 kere partikul ciz, ortaligi fazla doldurmasin
 			for (int i = 0; i < aktifRota.size() - 1; i++) {
 				BlockPos guncel = aktifRota.get(i);
 				BlockPos sonraki = aktifRota.get(i + 1);
 
 				// Sadece oyuncunun yakınındaki (yüklü) alandaki okları çiz (Performans için)
-				if (oyuncuPos.getManhattanDistance(guncel) > 120) continue;
+				if (oyuncuPos.getManhattanDistance(guncel) > 60) continue; // Sadece en yakindaki 60 blogu ciz
 
 				Vec3d yonVektoru = new Vec3d(sonraki.getX() - guncel.getX(), 0, sonraki.getZ() - guncel.getZ()).normalize();
 
 				client.world.addParticle(
-						ParticleTypes.SCRAPE,
+						ParticleTypes.HAPPY_VILLAGER,
 						guncel.getX() + 0.5 + yonVektoru.x * 0.2,
 						guncel.getY() + 1.2,
 						guncel.getZ() + 0.5 + yonVektoru.z * 0.2,
@@ -199,10 +199,10 @@ public class CourierNavigationClient implements ClientModInitializer {
 				}
 
 				double stepCost = 1.0;
-				BlockState state = world.getBlockState(komsuPos);
-				String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
-
 				if (isYol) {
+					BlockState state = world.getBlockState(komsuPos);
+					String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
+
 					if (blockId.contains("asphalt_pattern") && state.contains(Properties.HORIZONTAL_FACING)) {
 						Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
 						if (yolYonu == yon.getOpposite()) {
