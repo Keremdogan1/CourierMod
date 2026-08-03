@@ -672,6 +672,15 @@ public class CourierMod implements ModInitializer {
         }
     }
 
+
+    public static void sendWaypointPacket(ServerPlayerEntity p, LocationData target) {
+        if (target == null) return;
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeInt(target.x);
+        buf.writeInt(target.y);
+        buf.writeInt(target.z);
+        ServerPlayNetworking.send(p, new Identifier("courier", "set_waypoint"), buf);
+    }
     private int getDagitimWp(CommandContext<ServerCommandSource> context) {
         ServerPlayerEntity p = context.getSource().getPlayer();
         if (p == null) return 0;
@@ -683,6 +692,7 @@ public class CourierMod implements ModInitializer {
         LocationData dLoc = pm.dagitimLoc;
         String jmLink = String.format("[name:\"%s\", x:%d, y:%d, z:%d]", dLoc.name, dLoc.x, dLoc.y, dLoc.z);
         p.sendMessage(Text.literal(P + "\u00a7eDa\u011f\u0131t\u0131m noktas\u0131 waypoint'i olu\u015fturmak i\u00e7in t\u0131klay\u0131n: \u00a7b" + jmLink));
+        sendWaypointPacket(p, dLoc);
         return 1;
     }
 
@@ -697,6 +707,7 @@ public class CourierMod implements ModInitializer {
         LocationData mLoc = pm.musteriLoc;
         String jmLink = String.format("[name:\"%s\", x:%d, y:%d, z:%d]", mLoc.name, mLoc.x, mLoc.y, mLoc.z);
         p.sendMessage(Text.literal(P + "\u00a7eM\u00fc\u015fteri noktas\u0131 waypoint'i olu\u015fturmak i\u00e7in t\u0131klay\u0131n: \u00a7b" + jmLink));
+        sendWaypointPacket(p, mLoc);
         return 1;
     }
 
@@ -1388,6 +1399,7 @@ public class CourierMod implements ModInitializer {
                             }
                             pm.state = "TESLIMAT";
                               pm.missionStartTime = System.currentTimeMillis();
+                              sendWaypointPacket(p, pm.musteriLoc);
                               ItemStack item = new ItemStack(Items.BUNDLE);
                             item.setCustomName(Text.literal("\u00a7dM\u00fch\u00fcrl\u00fc Kurye Boh\u00e7as\u0131"));
                             p.getInventory().insertStack(item);
@@ -1477,6 +1489,7 @@ public class CourierMod implements ModInitializer {
                             }
                             pm.state = "TESLIMAT";
                               pm.missionStartTime = System.currentTimeMillis();
+                              sendWaypointPacket(p, pm.musteriLoc);
                               if (p.getWorld() instanceof ServerWorld && pm.taxiVillagerId != null) {
                                 Entity v = ((ServerWorld)p.getWorld()).getEntity(pm.taxiVillagerId);
                                 if (v != null) v.discard();

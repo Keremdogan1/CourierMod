@@ -138,6 +138,7 @@ public class JobMenuGui extends SimpleGui {
         }
 
         activeMissions.put(player.getUuid(), pm);
+        CourierMod.sendWaypointPacket(player, pm.dagitimLoc);
         callRequests.remove(req);
 
         
@@ -195,6 +196,7 @@ public class JobMenuGui extends SimpleGui {
         pm.ucret = ucret;
 
         activeMissions.put(player.getUuid(), pm);
+        CourierMod.sendWaypointPacket(player, pm.dagitimLoc);
         player.sendMessage(Text.literal("§aNPC çağrısını kabul ettin! §eGitmen gereken yer: " + pm.dagitimLoc.name));
 
         

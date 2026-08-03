@@ -150,14 +150,27 @@ public class CourierNavigationClient implements ClientModInitializer {
 				}
 
 				BlockState state = world.getBlockState(komsuPos);
-				if (state.contains(Properties.HORIZONTAL_FACING)) {
+				String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
+				double stepCost = 1.0;
+
+				if (blockId.contains("asphalt_pattern") && state.contains(Properties.HORIZONTAL_FACING)) {
 					Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
 					if (yolYonu == yon.getOpposite()) {
-						continue;
+						continue; // Ters yone (karsi seride) gecis yasak
+					} else if (yolYonu == yon) {
+						stepCost = 2.0; // Ok yonunde cizgi uzerinde gitmek
+					} else {
+						stepCost = 20.0; // Cizgiyi enlemesine kesmek (serit degistirmek / karsi seride cikmak buyuk ceza)
 					}
+				} else if (state.contains(Properties.HORIZONTAL_FACING)) {
+					Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
+					if (yolYonu == yon.getOpposite()) {
+						continue; // Genel ters yon yasagi
+					}
+					stepCost = 1.0;
 				}
 
-				double gecici_gSkor = gSkor.getOrDefault(mevcut.pos, Double.MAX_VALUE) + 1;
+				double gecici_gSkor = gSkor.getOrDefault(mevcut.pos, Double.MAX_VALUE) + stepCost;
 
 				if (gecici_gSkor < gSkor.getOrDefault(komsuPos, Double.MAX_VALUE)) {
 					neredenGeldi.put(komsuPos, mevcut.pos);
