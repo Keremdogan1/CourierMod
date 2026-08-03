@@ -54,6 +54,37 @@ public class CourierNavigationClient implements ClientModInitializer {
 				}
 			});
 		});
+
+		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+			dispatcher.register(ClientCommandManager.literal("navigasyon")
+				.then(ClientCommandManager.argument("x", IntegerArgumentType.integer())
+					.then(ClientCommandManager.argument("y", IntegerArgumentType.integer())
+						.then(ClientCommandManager.argument("z", IntegerArgumentType.integer())
+							.executes(context -> {
+								int x = IntegerArgumentType.getInteger(context, "x");
+								int y = IntegerArgumentType.getInteger(context, "y");
+								int z = IntegerArgumentType.getInteger(context, "z");
+								nihaiHedef = new BlockPos(x, y, z);
+								aktifRota.clear();
+								if (MinecraftClient.getInstance().player != null) {
+									dinamikRotaHesapla();
+									context.getSource().sendFeedback(Text.literal("Navigasyon hedefe yonlendirildi: " + x + ", " + y + ", " + z).formatted(Formatting.GREEN));
+								}
+								return 1;
+							})
+						)
+					)
+				)
+				.then(ClientCommandManager.literal("kapat")
+					.executes(context -> {
+						nihaiHedef = null;
+						aktifRota.clear();
+						context.getSource().sendFeedback(Text.literal("Navigasyon kapatildi!").formatted(Formatting.RED));
+						return 1;
+					})
+				)
+			);
+		});
 	}
 
 	// Hem okları çizen hem de yeni chunklar yüklendikçe rotayı uzatan ana döngü
