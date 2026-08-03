@@ -808,8 +808,6 @@ public class CourierMod implements ModInitializer {
             return 0;
         }
         
-        syncTaksiNoktalariToPlayer(p);
-        
         PacketByteBuf buf = PacketByteBufs.create();
         ServerPlayNetworking.send(p, new Identifier("couriermod", "open_taksi_map"), buf);
         return 1;

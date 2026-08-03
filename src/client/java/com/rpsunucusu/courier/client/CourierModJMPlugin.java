@@ -146,85 +146,40 @@ public class CourierModJMPlugin implements IClientPlugin {
     }
 
     public static void openFullscreenMap() {
-        if (jmAPI == null) {
-            System.out.println("[CourierMod] JourneyMap API not initialized, cannot open map.");
-            return;
-        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        boolean opened = false;
         try {
-            // Directly open JourneyMap's Fullscreen map screen via reflection
-            Class<?> fullscreenClass = Class.forName("journeymap.client.ui.fullscreen.Fullscreen");
-            Object fullscreenInstance = fullscreenClass.getDeclaredConstructor().newInstance();
-            MinecraftClient.getInstance().setScreen((net.minecraft.client.gui.screen.Screen) fullscreenInstance);
-            
-            // Try to force Day mode
-            try {
-                for (java.lang.reflect.Method m : fullscreenInstance.getClass().getMethods()) {
-                    if (m.getParameterCount() == 1 && m.getParameterTypes()[0].getName().endsWith("DisplayType")) {
-                        Class<?> enumClass = m.getParameterTypes()[0];
-                        for (Object enumConstant : enumClass.getEnumConstants()) {
-                            if (enumConstant.toString().equalsIgnoreCase("Day")) {
-                                m.invoke(fullscreenInstance, enumConstant);
-                                break;
-                            }
-                        }
+            for (net.minecraft.client.option.KeyBinding kb : client.options.allKeys) {
+                if (kb.getCategory().toLowerCase().contains("journeymap") || kb.getTranslationKey().toLowerCase().contains("journeymap")) {
+                    if (kb.getTranslationKey().toLowerCase().contains("fullscreen") || kb.getTranslationKey().toLowerCase().contains("map")) {
+                        // Simulate key press
+                        kb.setPressed(true);
+                        kb.setPressed(false);
+                        // Some mods check timesPressed to toggle
+                        net.minecraft.client.option.KeyBinding.onKeyPressed(((net.minecraft.client.util.InputUtil.Key)((Object)kb.getDefaultKey())));
+                        opened = true;
+                        break;
                     }
                 }
-            } catch (Exception ex) {
-                // Ignore if not possible
             }
-            
-            System.out.println("[CourierMod] JourneyMap Fullscreen map opened successfully.");
-        } catch (ClassNotFoundException e) {
-            System.err.println("[CourierMod] JourneyMap Fullscreen class not found. Is JourneyMap installed?");
-            fallbackMessage();
-        } catch (NoSuchMethodException e) {
-            System.err.println("[CourierMod] JourneyMap Fullscreen has no default constructor, trying alternative...");
-            tryAlternativeOpen();
-        } catch (Exception e) {
-            System.err.println("[CourierMod] Failed to open JourneyMap Fullscreen: " + e.getMessage());
-            e.printStackTrace();
-            fallbackMessage();
+        } catch (Exception e) {}
+
+        if (!opened) {
+            // Fallback to J key
+            net.minecraft.client.option.KeyBinding.onKeyPressed(net.minecraft.client.util.InputUtil.Type.KEYSYM.createFromCode(org.lwjgl.glfw.GLFW.GLFW_KEY_J));
         }
+        
+        fallbackMessage();
     }
 
     private static void tryAlternativeOpen() {
-        try {
-            // Some JourneyMap versions use a static instance or factory
-            Class<?> fullscreenClass = Class.forName("journeymap.client.ui.fullscreen.Fullscreen");
-            // Try constructors with parameters
-            for (java.lang.reflect.Constructor<?> constructor : fullscreenClass.getDeclaredConstructors()) {
-                constructor.setAccessible(true);
-                Class<?>[] paramTypes = constructor.getParameterTypes();
-                if (paramTypes.length == 0) {
-                    Object instance = constructor.newInstance();
-                    MinecraftClient.getInstance().setScreen((net.minecraft.client.gui.screen.Screen) instance);
-                    return;
-                }
-            }
-            // If no suitable constructor found, try static methods
-            for (java.lang.reflect.Method method : fullscreenClass.getDeclaredMethods()) {
-                if (java.lang.reflect.Modifier.isStatic(method.getModifiers()) 
-                    && net.minecraft.client.gui.screen.Screen.class.isAssignableFrom(method.getReturnType())
-                    && method.getParameterCount() == 0) {
-                    method.setAccessible(true);
-                    Object screen = method.invoke(null);
-                    if (screen != null) {
-                        MinecraftClient.getInstance().setScreen((net.minecraft.client.gui.screen.Screen) screen);
-                        return;
-                    }
-                }
-            }
-            fallbackMessage();
-        } catch (Exception e) {
-            e.printStackTrace();
-            fallbackMessage();
-        }
+        // Obsolete
     }
 
     private static void fallbackMessage() {
         if (MinecraftClient.getInstance().player != null) {
             MinecraftClient.getInstance().player.sendMessage(
-                net.minecraft.text.Text.literal("\u00a76[Taksi] \u00a7eHaritay\u0131 a\u00e7mak i\u00e7in \u00a7bJ \u00a7etu\u015funa bas\u0131n ve gitmek istedi\u011finiz Taksi Noktas\u0131na t\u0131klay\u0131n!"), false);
+                net.minecraft.text.Text.literal("\u00a7a[Bilgi] \u00a7eHarita kendili\u011finden a\u00e7\u0131lmazsa, \u00a7bl\u00fctfen kendi harita tu\u015funuza (genellikle J) basarak \u00a7eharitay\u0131 a\u00e7\u0131n ve taksi noktas\u0131na t\u0131klay\u0131n!"), false);
         }
     }
 }

@@ -128,22 +128,22 @@ public class CourierNavigationClient implements ClientModInitializer {
 
 		// --- NAVİGASYON OK RENDER MOTORU ---
 		sayac++;
-		if (sayac % 3 == 0) { // Daha sık çiz
+		if (true) { // Her tick çiz ki belirgin bir çizgi oluşsun
 			for (int i = 0; i < aktifRota.size() - 1; i++) {
 				BlockPos guncel = aktifRota.get(i);
 				BlockPos sonraki = aktifRota.get(i + 1);
 
-				// Uzaklık limitini artırdık
-				if (oyuncuPos.getManhattanDistance(guncel) > 150) continue;
+				// Uzaklık limitini 100 bloğa çektik
+				if (oyuncuPos.getManhattanDistance(guncel) > 100) continue;
 
 				Vec3d yonVektoru = new Vec3d(sonraki.getX() - guncel.getX(), 0, sonraki.getZ() - guncel.getZ()).normalize();
 
 				client.world.addParticle(
-						ParticleTypes.END_ROD,
+						ParticleTypes.FLAME,
 						guncel.getX() + 0.5 + yonVektoru.x * 0.2,
 						guncel.getY() + 1.2,
 						guncel.getZ() + 0.5 + yonVektoru.z * 0.2,
-						0, 0, 0 // Hız sıfır
+						0, 0.01, 0 // Çok hafif yukarı süzülsün
 				);
 			}
 		}
@@ -203,7 +203,7 @@ public class CourierNavigationClient implements ClientModInitializer {
 					BlockState state = world.getBlockState(komsuPos);
 					String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
 
-					if (blockId.contains("asphalt_pattern") && state.contains(Properties.HORIZONTAL_FACING)) {
+					if (blockId.contains("asphalt") && state.contains(Properties.HORIZONTAL_FACING)) {
 						Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
 						if (yolYonu == yon.getOpposite()) {
 							continue; // Ters yone (karsi seride) gecis yasak
