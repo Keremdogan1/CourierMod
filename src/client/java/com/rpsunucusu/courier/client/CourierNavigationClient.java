@@ -139,7 +139,7 @@ public class CourierNavigationClient implements ClientModInitializer {
 				Vec3d yonVektoru = new Vec3d(sonraki.getX() - guncel.getX(), 0, sonraki.getZ() - guncel.getZ()).normalize();
 
 				client.world.addParticle(
-						ParticleTypes.HAPPY_VILLAGER,
+						ParticleTypes.TOTEM_OF_UNDYING,
 						guncel.getX() + 0.5 + yonVektoru.x * 0.2,
 						guncel.getY() + 1.2,
 						guncel.getZ() + 0.5 + yonVektoru.z * 0.2,

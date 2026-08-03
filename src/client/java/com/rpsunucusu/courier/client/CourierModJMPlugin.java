@@ -90,9 +90,9 @@ public class CourierModJMPlugin implements IClientPlugin {
                     @Override
                     public boolean onMouseClick(journeymap.client.api.util.UIState mapState, java.awt.geom.Point2D.Double mousePosition, net.minecraft.util.math.BlockPos blockPosition, int button, boolean doubleClick) {
                         MinecraftClient.getInstance().execute(() -> {
-                            if (MinecraftClient.getInstance().player != null && CourierModClient.taksiRequestedTime == 0) {
+                            if (MinecraftClient.getInstance().player != null) {
+                                MinecraftClient.getInstance().player.sendMessage(net.minecraft.text.Text.literal("§eTaksi noktasina tiklandi: " + loc.name), false);
                                 MinecraftClient.getInstance().player.networkHandler.sendCommand("taksi cagir " + loc.name);
-                                // Wait for server to respond with taksi_request_success packet
                             }
                         });
                         return true;
