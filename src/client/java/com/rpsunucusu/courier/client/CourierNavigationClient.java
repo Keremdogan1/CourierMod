@@ -40,7 +40,11 @@ public class CourierNavigationClient implements ClientModInitializer {
 		aktifRota.clear();
 		if (MinecraftClient.getInstance().player != null) {
 			dinamikRotaHesapla();
-			MinecraftClient.getInstance().player.sendMessage(Text.literal("Navigasyon hedefe yonlendirildi: " + hedef.getX() + ", " + hedef.getY() + ", " + hedef.getZ()).formatted(Formatting.GREEN), false);
+			if (aktifRota.size() <= 1) {
+				MinecraftClient.getInstance().player.sendMessage(Text.literal("§c[Hata] Rota bulunamadı! Lütfen yola çıkın veya hedefe yaklaşın."), false);
+			} else {
+				MinecraftClient.getInstance().player.sendMessage(Text.literal("Navigasyon yönlendirildi: " + hedef.getX() + ", " + hedef.getY() + ", " + hedef.getZ() + " (Rota: " + aktifRota.size() + ")").formatted(Formatting.GREEN), false);
+			}
 		}
 	}
 
@@ -70,12 +74,7 @@ public class CourierNavigationClient implements ClientModInitializer {
 				.executes(context -> {
 					navigasyonSecimiBekleniyor = true;
 					context.getSource().sendFeedback(Text.literal("§eHarita aciliyor... Lutfen gitmek istediginiz yere §a§lSOL TIKLAYIN§e!"));
-					new Thread(() -> {
-						try { Thread.sleep(1500); } catch (Exception e) {}
-						MinecraftClient.getInstance().execute(() -> {
-							CourierModJMPlugin.openFullscreenMap();
-						});
-					}).start();
+					CourierModJMPlugin.openFullscreenMap();
 					return 1;
 				})
 				.then(ClientCommandManager.argument("x", IntegerArgumentType.integer())
@@ -139,11 +138,11 @@ public class CourierNavigationClient implements ClientModInitializer {
 				Vec3d yonVektoru = new Vec3d(sonraki.getX() - guncel.getX(), 0, sonraki.getZ() - guncel.getZ()).normalize();
 
 				client.world.addParticle(
-						ParticleTypes.FLAME,
+						ParticleTypes.HAPPY_VILLAGER,
 						guncel.getX() + 0.5 + yonVektoru.x * 0.2,
 						guncel.getY() + 1.2,
 						guncel.getZ() + 0.5 + yonVektoru.z * 0.2,
-						0, 0.01, 0 // Çok hafif yukarı süzülsün
+						0, 0, 0 // Hareketsiz parlak partikül
 				);
 			}
 		}
