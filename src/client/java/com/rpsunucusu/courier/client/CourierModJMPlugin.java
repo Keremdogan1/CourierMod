@@ -147,33 +147,52 @@ public class CourierModJMPlugin implements IClientPlugin {
 
     public static void openFullscreenMap() {
         MinecraftClient client = MinecraftClient.getInstance();
-        boolean opened = false;
         try {
             if (client.currentScreen != null) {
                 client.setScreen(null);
             }
-            // Find JourneyMap's map keybinding and simulate a key press
+            
+            // Yontem 1: JourneyMap UIManager uzerinden acmayi dene (en temiz yol)
+            try {
+                Class<?> uiManagerClass = Class.forName("journeymap.client.ui.UIManager");
+                Object uiManager = uiManagerClass.getMethod("getInstance").invoke(null);
+                uiManagerClass.getMethod("openFullscreenMap").invoke(uiManager);
+                return;
+            } catch (Exception e1) {}
+            
+            // Yontem 2: Eski reflection yontemi ile Fullscreen nesnesi olustur
+            try {
+                Class<?> fullscreenClass = Class.forName("journeymap.client.ui.fullscreen.Fullscreen");
+                Object fullscreenInstance = fullscreenClass.getDeclaredConstructor().newInstance();
+                client.setScreen((net.minecraft.client.gui.screen.Screen) fullscreenInstance);
+                return;
+            } catch (Exception e2) {}
+
+            // Yontem 3: Tus basimi simule et (key.setPressed(true) ile)
+            boolean opened = false;
             for (net.minecraft.client.option.KeyBinding key : client.options.allKeys) {
                 if (key.getCategory().toLowerCase().contains("journeymap") && (key.getTranslationKey().toLowerCase().contains("fullscreen") || key.getTranslationKey().toLowerCase().contains("key.map"))) {
+                    key.setPressed(true);
+                    
                     try {
                         for (java.lang.reflect.Field field : net.minecraft.client.option.KeyBinding.class.getDeclaredFields()) {
                             if (field.getType() == int.class) {
                                 field.setAccessible(true);
                                 field.setInt(key, field.getInt(key) + 1);
-                                opened = true;
-                                break;
                             }
                         }
                     } catch (Exception ex) {}
+                    
                     opened = true;
                     break;
                 }
             }
+
+            if (!opened) {
+                net.minecraft.client.option.KeyBinding.onKeyPressed(net.minecraft.client.util.InputUtil.Type.KEYSYM.createFromCode(org.lwjgl.glfw.GLFW.GLFW_KEY_J));
+            }
         } catch (Exception e) {}
 
-        if (!opened) {
-            net.minecraft.client.option.KeyBinding.onKeyPressed(net.minecraft.client.util.InputUtil.Type.KEYSYM.createFromCode(org.lwjgl.glfw.GLFW.GLFW_KEY_J));
-        }
         fallbackMessage();
     }
 
