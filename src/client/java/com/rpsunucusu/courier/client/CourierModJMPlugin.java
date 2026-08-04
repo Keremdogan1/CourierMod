@@ -155,25 +155,16 @@ public class CourierModJMPlugin implements IClientPlugin {
             // Find JourneyMap's map keybinding and simulate a key press
             for (net.minecraft.client.option.KeyBinding key : client.options.allKeys) {
                 if (key.getCategory().toLowerCase().contains("journeymap") && (key.getTranslationKey().toLowerCase().contains("fullscreen") || key.getTranslationKey().toLowerCase().contains("key.map"))) {
-                    net.minecraft.client.util.InputUtil.Key boundKey = null;
                     try {
                         for (java.lang.reflect.Field field : net.minecraft.client.option.KeyBinding.class.getDeclaredFields()) {
-                            if (field.getType() == net.minecraft.client.util.InputUtil.Key.class) {
+                            if (field.getType() == int.class) {
                                 field.setAccessible(true);
-                                net.minecraft.client.util.InputUtil.Key k = (net.minecraft.client.util.InputUtil.Key) field.get(key);
-                                if (k != null && k != net.minecraft.client.util.InputUtil.UNKNOWN_KEY) {
-                                    boundKey = k;
-                                    break;
-                                }
+                                field.setInt(key, field.getInt(key) + 1);
+                                opened = true;
+                                break;
                             }
                         }
                     } catch (Exception ex) {}
-
-                    if (boundKey != null) {
-                        net.minecraft.client.option.KeyBinding.onKeyPressed(boundKey);
-                    } else {
-                        net.minecraft.client.option.KeyBinding.onKeyPressed(((net.minecraft.client.util.InputUtil.Key)((Object)key.getDefaultKey())));
-                    }
                     opened = true;
                     break;
                 }
