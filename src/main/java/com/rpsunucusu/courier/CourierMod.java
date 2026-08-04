@@ -1594,7 +1594,7 @@ public class CourierMod implements ModInitializer {
                                 }
                                 
                                 int res = server.getCommandManager().executeWithPrefix(server.getCommandSource(), "kurum_api ode " + data.kuryeSirketId + " " + p.getName().getString() + " " + (int)ucret);
-                                if (res == 0) p.sendMessage(net.minecraft.text.Text.literal("§c[Kurye] Şirketin kasasında para olmadığı için maaşınız ödenemedi!"));
+                                if (res == 0) p.sendMessage(net.minecraft.text.Text.literal(pm.type.equals("TAKSI") ? "§c[Taksi] Şirketin kasasında para olmadığı için maaşınız ödenemedi!" : "§c[Kurye] Şirketin kasasında para olmadığı için maaşınız ödenemedi!"));
                                 addXp(p, "TAKSI", 50.0);
                                 activeMissions.remove(p.getUuid());
                                 p.sendMessage(Text.literal("§6[Taksi] §aMüşteriyi hedefine ulaştırdınız. Kazanılan: " + (int) ucret + "TL"));
@@ -1611,7 +1611,7 @@ public class CourierMod implements ModInitializer {
                         double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
                                   double ucret = pm.ucret;
                         int res = server.getCommandManager().executeWithPrefix(server.getCommandSource(), "kurum_api ode " + data.kuryeSirketId + " " + p.getName().getString() + " " + (int)ucret);
-                                if (res == 0) p.sendMessage(net.minecraft.text.Text.literal("§c[Kurye] Şirketin kasasında para olmadığı için maaşınız ödenemedi!"));
+                                if (res == 0) p.sendMessage(net.minecraft.text.Text.literal(pm.type.equals("TAKSI") ? "§c[Taksi] Şirketin kasasında para olmadığı için maaşınız ödenemedi!" : "§c[Kurye] Şirketin kasasında para olmadığı için maaşınız ödenemedi!"));
                         p.sendMessage(Text.literal(P + "\u00a7bTaksi g\u00f6revi ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                         p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
                         
