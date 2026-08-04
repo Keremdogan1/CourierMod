@@ -149,10 +149,31 @@ public class CourierModJMPlugin implements IClientPlugin {
         MinecraftClient client = MinecraftClient.getInstance();
         boolean opened = false;
         try {
+            if (client.currentScreen != null) {
+                client.setScreen(null);
+            }
             // Find JourneyMap's map keybinding and simulate a key press
             for (net.minecraft.client.option.KeyBinding key : client.options.allKeys) {
                 if (key.getCategory().toLowerCase().contains("journeymap") && (key.getTranslationKey().toLowerCase().contains("fullscreen") || key.getTranslationKey().toLowerCase().contains("key.map"))) {
-                    net.minecraft.client.option.KeyBinding.onKeyPressed(((net.minecraft.client.util.InputUtil.Key)((Object)key.getDefaultKey())));
+                    net.minecraft.client.util.InputUtil.Key boundKey = null;
+                    try {
+                        for (java.lang.reflect.Field field : net.minecraft.client.option.KeyBinding.class.getDeclaredFields()) {
+                            if (field.getType() == net.minecraft.client.util.InputUtil.Key.class) {
+                                field.setAccessible(true);
+                                net.minecraft.client.util.InputUtil.Key k = (net.minecraft.client.util.InputUtil.Key) field.get(key);
+                                if (k != null && k != net.minecraft.client.util.InputUtil.UNKNOWN_KEY) {
+                                    boundKey = k;
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (Exception ex) {}
+
+                    if (boundKey != null) {
+                        net.minecraft.client.option.KeyBinding.onKeyPressed(boundKey);
+                    } else {
+                        net.minecraft.client.option.KeyBinding.onKeyPressed(((net.minecraft.client.util.InputUtil.Key)((Object)key.getDefaultKey())));
+                    }
                     opened = true;
                     break;
                 }
