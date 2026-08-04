@@ -135,6 +135,7 @@ public class CourierMod implements ModInitializer {
         public List<LocationData> dagitimNoktalari = new ArrayList<>();
         public List<LocationData> musteriNoktalari = new ArrayList<>();
         public List<LocationData> taksiNoktalari = new ArrayList<>();
+        public String kuryeSirketId = "XKUR01";
         public List<String> ipucuKapatanlar = new ArrayList<>();
         public Map<String, PlayerStats> playerStats = new HashMap<>();
         public double kuryeCarpan = 0.1;
@@ -344,6 +345,34 @@ public class CourierMod implements ModInitializer {
 
     public int getPlayerParaPublic(MinecraftServer server, ServerPlayerEntity p) {
         return getPlayerPara(server, p);
+    }
+
+    
+    public static boolean transferMoney(MinecraftServer server, java.util.UUID from, java.util.UUID to, double amount) {
+        try {
+            Class<?> stateClass = Class.forName("com.example.secretid.PlayerDataState");
+            java.lang.reflect.Method getServerState = stateClass.getMethod("getServerState", MinecraftServer.class);
+            Object state = getServerState.invoke(null, server);
+
+            java.lang.reflect.Method getBalance = stateClass.getMethod("getBalance", java.util.UUID.class);
+            double balance = (double) getBalance.invoke(state, from);
+
+            if (balance >= amount) {
+                java.lang.reflect.Method removeBalance = stateClass.getMethod("removeBalance", java.util.UUID.class, double.class);
+                removeBalance.invoke(state, from, amount);
+
+                java.lang.reflect.Method addBalance = stateClass.getMethod("addBalance", java.util.UUID.class, double.class);
+                addBalance.invoke(state, to, amount);
+
+                java.lang.reflect.Method markDirty = stateClass.getMethod("markDirty");
+                markDirty.invoke(state);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     public static void addPlayerPara(MinecraftServer server, ServerPlayerEntity p, int amount) {
@@ -731,9 +760,13 @@ public class CourierMod implements ModInitializer {
                     double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - customer.getBlockPos().getX(), 2) + Math.pow(pm.dagitimLoc.z - customer.getBlockPos().getZ(), 2));
                     double ucret = Math.floor(totalDist * data.taksiCarpan);
                     if (ucret < MIN_UCRET) ucret = MIN_UCRET;
-                    p.getServer().getCommandManager().executeWithPrefix(p.getServer().getCommandSource(), "eco take " + customer.getName().getString() + " " + (int) ucret);
-                    customer.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cTaksi ücreti olarak " + (int) ucret + " kesildi."));
-                    addPlayerPara(p.getServer(), p, (int) ucret);
+                    boolean success = transferMoney(p.getServer(), customer.getUuid(), p.getUuid(), ucret);
+                    if (success) {
+                        customer.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cTaksi ücreti olarak " + (int) ucret + " AK Lirası hesabınızdan kesildi."));
+                    } else {
+                        p.sendMessage(net.minecraft.text.Text.literal("§6[Taksi] §cMüşterinin yeterli parası olmadığı için işlem iptal edildi!"));
+                        return 0;
+                    }
                     addXp(p, "TAKSI", 50.0);
                     activeMissions.remove(p.getUuid());
                     customer.stopRiding();
@@ -1435,7 +1468,8 @@ public class CourierMod implements ModInitializer {
                             if (hasItem) {
                                 double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
                                   double ucret = pm.ucret;
-                                addPlayerPara(server, p, (int) ucret);
+                                int res = server.getCommandManager().executeWithPrefix(server.getCommandSource(), "kurum_api ode " + data.kuryeSirketId + " " + p.getName().getString() + " " + (int)ucret);
+                                if (res == 0) p.sendMessage(net.minecraft.text.Text.literal("§c[Kurye] Şirketin kasasında para olmadığı için maaşınız ödenemedi!"));
                                 p.sendMessage(Text.literal(P + "\u00a7bTeslimat ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                                   if (pm.isPlayerJob) {
                                       ServerPlayerEntity customer = server.getPlayerManager().getPlayer(pm.customerId);
@@ -1559,7 +1593,8 @@ public class CourierMod implements ModInitializer {
                                     }
                                 }
                                 
-                                addPlayerPara(server, p, (int) ucret);
+                                int res = server.getCommandManager().executeWithPrefix(server.getCommandSource(), "kurum_api ode " + data.kuryeSirketId + " " + p.getName().getString() + " " + (int)ucret);
+                                if (res == 0) p.sendMessage(net.minecraft.text.Text.literal("§c[Kurye] Şirketin kasasında para olmadığı için maaşınız ödenemedi!"));
                                 addXp(p, "TAKSI", 50.0);
                                 activeMissions.remove(p.getUuid());
                                 p.sendMessage(Text.literal("§6[Taksi] §aMüşteriyi hedefine ulaştırdınız. Kazanılan: " + (int) ucret + "TL"));
@@ -1575,7 +1610,8 @@ public class CourierMod implements ModInitializer {
                         }
                         double totalDist = Math.sqrt(Math.pow(pm.dagitimLoc.x - pm.musteriLoc.x, 2) + Math.pow(pm.dagitimLoc.z - pm.musteriLoc.z, 2));
                                   double ucret = pm.ucret;
-                        addPlayerPara(server, p, (int) ucret);
+                        int res = server.getCommandManager().executeWithPrefix(server.getCommandSource(), "kurum_api ode " + data.kuryeSirketId + " " + p.getName().getString() + " " + (int)ucret);
+                                if (res == 0) p.sendMessage(net.minecraft.text.Text.literal("§c[Kurye] Şirketin kasasında para olmadığı için maaşınız ödenemedi!"));
                         p.sendMessage(Text.literal(P + "\u00a7bTaksi g\u00f6revi ba\u015far\u0131l\u0131! \u00a7e" + (int) totalDist + " \u00a77metre yol yapt\u0131n."));
                         p.sendMessage(Text.literal("\u00a7aKazan\u00e7: \u00a7e" + (int) ucret + "\u20ba"));
                         
