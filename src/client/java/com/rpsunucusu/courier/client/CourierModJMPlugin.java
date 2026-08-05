@@ -146,56 +146,21 @@ public class CourierModJMPlugin implements IClientPlugin {
     }
 
     public static void openFullscreenMap() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.currentScreen != null) {
-            client.setScreen(null);
-        }
-
+        if (jmAPI == null) return;
         try {
-            // Yontem 1: JourneyMap UIManager uzerinden acmayi dene (en temiz yol)
-            Class<?> uiManagerClass = Class.forName("journeymap.client.ui.UIManager");
-            Object uiManager = uiManagerClass.getMethod("getInstance").invoke(null);
-            uiManagerClass.getMethod("openFullscreenMap").invoke(uiManager);
-            System.out.println("[CourierMod] JourneyMap opened via UIManager.");
-            return;
-        } catch (Exception e1) {
-            System.err.println("[CourierMod] UIManager failed, falling back to KeyBinding...");
+            Class<?> fullscreenClass = Class.forName("journeymap.client.ui.fullscreen.Fullscreen");
+            Object fullscreenInstance = fullscreenClass.getDeclaredConstructor().newInstance();
+            MinecraftClient.getInstance().setScreen((net.minecraft.client.gui.screen.Screen) fullscreenInstance);
+        } catch (Exception e) {
+            e.printStackTrace();
+            fallbackMessage();
         }
-        
-        try {
-            // Yontem 2: Tus basimi simule et
-            boolean opened = false;
-            for (net.minecraft.client.option.KeyBinding key : client.options.allKeys) {
-                if (key.getCategory().toLowerCase().contains("journeymap") && (key.getTranslationKey().toLowerCase().contains("fullscreen") || key.getTranslationKey().toLowerCase().contains("key.map"))) {
-                    key.setPressed(true);
-                    try {
-                        for (java.lang.reflect.Field field : net.minecraft.client.option.KeyBinding.class.getDeclaredFields()) {
-                            if (field.getType() == int.class) {
-                                field.setAccessible(true);
-                                field.setInt(key, field.getInt(key) + 1);
-                            }
-                        }
-                    } catch (Exception ex) {}
-                    opened = true;
-                    System.out.println("[CourierMod] JourneyMap opened via mapped KeyBinding.");
-                    break;
-                }
-            }
-
-            if (!opened) {
-                net.minecraft.client.option.KeyBinding.onKeyPressed(net.minecraft.client.util.InputUtil.Type.KEYSYM.createFromCode(org.lwjgl.glfw.GLFW.GLFW_KEY_J));
-                System.out.println("[CourierMod] JourneyMap opened via J key fallback.");
-            }
-            return;
-        } catch (Exception e) {}
-
-        fallbackMessage();
     }
 
     private static void fallbackMessage() {
         if (MinecraftClient.getInstance().player != null) {
             MinecraftClient.getInstance().player.sendMessage(
-                net.minecraft.text.Text.literal("\u00a7a[Bilgi] \u00a7eHarita kendili\u011finden a\u00e7\u0131lmazsa, \u00a7bl\u00fctfen kendi harita tu\u015funuza (genellikle J) basarak \u00a7eharitay\u0131 a\u00e7\u0131n ve taksi noktas\u0131na t\u0131klay\u0131n!"), false);
+                net.minecraft.text.Text.literal("\u00a7a[Bilgi] \u00a7eHarita kendili\u011finden a\u00e7\u0131lmazsa, l\u00fctfen kendi harita tu\u015funuza basarak a\u00e7\u0131n!"), false);
         }
     }
 }

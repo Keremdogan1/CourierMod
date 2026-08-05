@@ -199,30 +199,12 @@ public class CourierNavigationClient implements ClientModInitializer {
 
 				double stepCost = 1.0;
 				if (isYol) {
-					BlockState state = world.getBlockState(komsuPos);
-					String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
-
-					if (blockId.contains("asphalt") && state.contains(Properties.HORIZONTAL_FACING)) {
-						Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
-						if (yolYonu == yon.getOpposite()) {
-							continue; // Ters yone (karsi seride) gecis yasak
-						} else if (yolYonu == yon) {
-							stepCost = 2.0; // Ok yonunde cizgi uzerinde gitmek
-						} else {
-							stepCost = 20.0; // Cizgiyi enlemesine kesmek (serit degistirmek / karsi seride cikmak buyuk ceza)
-						}
-					} else if (state.contains(Properties.HORIZONTAL_FACING)) {
-						Direction yolYonu = state.get(Properties.HORIZONTAL_FACING);
-						if (yolYonu == yon.getOpposite()) {
-							continue; // Genel ters yon yasagi
-						}
-						stepCost = 1.0;
-					}
+					stepCost = 1.0;
 				} else {
 					if (getManhattanMesafe(komsuPos, baslangic) <= 25 || getManhattanMesafe(komsuPos, nihaiHedef) <= 25) {
-						stepCost = 50.0; // Yuksek ceza ile arazide yurumeye izin ver
+						stepCost = 50.0;
 					} else {
-						continue; // Arazide yurumek sadece baslangic ve bitiste 25 blok sinirinda serbest
+						continue;
 					}
 				}
 
@@ -255,7 +237,7 @@ public class CourierNavigationClient implements ClientModInitializer {
 
 	private static boolean yolMu(World world, BlockPos pos) {
 		String blockId = Registries.BLOCK.getId(world.getBlockState(pos).getBlock()).toString();
-		return blockId.startsWith("trafficcraft:") && (blockId.contains("asphalt") || blockId.contains("concrete"));
+		return blockId.contains("asphalt") || blockId.contains("concrete") || blockId.contains("cyan_terracotta");
 	}
 
 	private static double getManhattanMesafe(BlockPos a, BlockPos b) {
