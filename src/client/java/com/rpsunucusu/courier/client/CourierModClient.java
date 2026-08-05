@@ -28,6 +28,7 @@ public class CourierModClient implements ClientModInitializer {
     public static long taksiRequestedTime = 0;
     public static String taksiRequestSuccessMsg = "";
     public static boolean wasInJourneyMap = false;
+    public static int taksiMapDelayTicks = 0;
 
     @Override
     public void onInitializeClient() {
@@ -75,6 +76,12 @@ public class CourierModClient implements ClientModInitializer {
         });
         
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (taksiMapDelayTicks > 0) {
+                taksiMapDelayTicks--;
+                if (taksiMapDelayTicks == 0) {
+                    CourierModJMPlugin.openFullscreenMap();
+                }
+            }
             if (taksiMapActive) {
                 boolean inJM = client.currentScreen != null && client.currentScreen.getClass().getName().toLowerCase().contains("journeymap");
                 if (inJM) {
@@ -109,8 +116,9 @@ public class CourierModClient implements ClientModInitializer {
                 taksiMapActive = true;
                 wasInJourneyMap = false;
                 taksiRequestedTime = 0;
+                client.setScreen(null);
                 CourierModJMPlugin.showWaypoints();
-                CourierModJMPlugin.openFullscreenMap();
+                taksiMapDelayTicks = 2;
             });
         });
 
