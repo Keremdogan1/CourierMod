@@ -146,48 +146,30 @@ public class CourierModJMPlugin implements IClientPlugin {
     }
 
     public static void openFullscreenMap() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player != null) {
+            client.player.sendMessage(net.minecraft.text.Text.literal("§d[Test] openFullscreenMap() tetiklendi!"), false);
+        }
         if (jmAPI == null) {
             fallbackMessage();
             System.err.println("[CourierMod] jmAPI is NULL! JourneyMap did not initialize the plugin!");
             return;
         }
         try {
-            Class<?> uiManagerClass = Class.forName("journeymap.client.ui.UIManager");
-            Object uiManager = uiManagerClass.getMethod("getInstance").invoke(null);
-            uiManagerClass.getMethod("openFullscreenMap").invoke(uiManager);
-            return;
-        } catch (Exception e1) {}
-
-        try {
             Class<?> fullscreenClass = Class.forName("journeymap.client.ui.fullscreen.Fullscreen");
             Object fullscreenInstance = fullscreenClass.getDeclaredConstructor().newInstance();
-            MinecraftClient.getInstance().setScreen((net.minecraft.client.gui.screen.Screen) fullscreenInstance);
-            return;
-        } catch (Exception e) {}
-
-        try {
-            boolean opened = false;
-            for (net.minecraft.client.option.KeyBinding key : MinecraftClient.getInstance().options.allKeys) {
-                if (key.getCategory().toLowerCase().contains("journeymap") && (key.getTranslationKey().toLowerCase().contains("fullscreen") || key.getTranslationKey().toLowerCase().contains("key.map"))) {
-                    key.setPressed(true);
-                    try {
-                        for (java.lang.reflect.Field field : net.minecraft.client.option.KeyBinding.class.getDeclaredFields()) {
-                            if (field.getType() == int.class) {
-                                field.setAccessible(true);
-                                field.setInt(key, field.getInt(key) + 1);
-                            }
-                        }
-                    } catch (Exception ex) {}
-                    opened = true;
-                    break;
-                }
-            }
-            if (!opened) {
-                net.minecraft.client.option.KeyBinding.onKeyPressed(net.minecraft.client.util.InputUtil.Type.KEYSYM.createFromCode(org.lwjgl.glfw.GLFW.GLFW_KEY_J));
+            client.setScreen((net.minecraft.client.gui.screen.Screen) fullscreenInstance);
+            System.out.println("[CourierMod] Map opened using 1.6.0 Reflection!");
+            if (client.player != null) {
+                client.player.sendMessage(net.minecraft.text.Text.literal("§d[Test] Harita 1.6.0 yöntemiyle açıldı!"), false);
             }
             return;
-        } catch (Exception e2) {}
-
+        } catch (Exception e) {
+            e.printStackTrace();
+            if (client.player != null) {
+                client.player.sendMessage(net.minecraft.text.Text.literal("§c[Test] 1.6.0 yöntemi HATA verdi!"), false);
+            }
+        }
         fallbackMessage();
     }
 
