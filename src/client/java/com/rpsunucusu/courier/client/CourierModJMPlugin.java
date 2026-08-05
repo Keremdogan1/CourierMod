@@ -146,31 +146,18 @@ public class CourierModJMPlugin implements IClientPlugin {
     }
 
     public static void openFullscreenMap() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player != null) {
-            client.player.sendMessage(net.minecraft.text.Text.literal("§d[Test] openFullscreenMap() tetiklendi!"), false);
-        }
         if (jmAPI == null) {
             fallbackMessage();
-            System.err.println("[CourierMod] jmAPI is NULL! JourneyMap did not initialize the plugin!");
             return;
         }
         try {
             Class<?> fullscreenClass = Class.forName("journeymap.client.ui.fullscreen.Fullscreen");
             Object fullscreenInstance = fullscreenClass.getDeclaredConstructor().newInstance();
-            client.setScreen((net.minecraft.client.gui.screen.Screen) fullscreenInstance);
-            System.out.println("[CourierMod] Map opened using 1.6.0 Reflection!");
-            if (client.player != null) {
-                client.player.sendMessage(net.minecraft.text.Text.literal("§d[Test] Harita 1.6.0 yöntemiyle açıldı!"), false);
-            }
-            return;
+            MinecraftClient.getInstance().setScreen((net.minecraft.client.gui.screen.Screen) fullscreenInstance);
         } catch (Exception e) {
             e.printStackTrace();
-            if (client.player != null) {
-                client.player.sendMessage(net.minecraft.text.Text.literal("§c[Test] 1.6.0 yöntemi HATA verdi!"), false);
-            }
+            fallbackMessage();
         }
-        fallbackMessage();
     }
 
     private static void fallbackMessage() {

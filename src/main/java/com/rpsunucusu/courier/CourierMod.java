@@ -840,16 +840,9 @@ public class CourierMod implements ModInitializer {
         
         try {
             PacketByteBuf buf = PacketByteBufs.create();
-            boolean canSend = ServerPlayNetworking.canSend(p, new Identifier("couriermod", "open_taksi_map"));
-            p.sendMessage(net.minecraft.text.Text.literal("§d[Debug] canSend=" + canSend));
-            if (canSend) {
-                ServerPlayNetworking.send(p, new Identifier("couriermod", "open_taksi_map"), buf);
-                p.sendMessage(net.minecraft.text.Text.literal("§d[Debug] Paket gönderildi!"));
-            } else {
-                p.sendMessage(net.minecraft.text.Text.literal("§c[Debug] İstemci open_taksi_map kanalını kayıt etmemiş! Paket gönderilemedi."));
-            }
+            ServerPlayNetworking.send(p, new Identifier("couriermod", "open_taksi_map"), buf);
         } catch (Exception e) {
-            p.sendMessage(net.minecraft.text.Text.literal("§c[Debug] Paket gönderim hatası: " + e.getMessage()));
+            p.sendMessage(net.minecraft.text.Text.literal("§c[Taksi] Harita açılamadı: " + e.getMessage()));
             e.printStackTrace();
         }
         return 1;

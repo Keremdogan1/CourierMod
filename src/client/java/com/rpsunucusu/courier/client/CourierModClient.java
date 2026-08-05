@@ -112,9 +112,6 @@ public class CourierModClient implements ClientModInitializer {
         
         ClientPlayNetworking.registerGlobalReceiver(new Identifier("couriermod", "open_taksi_map"), (client, handler, buf, responseSender) -> {
             client.execute(() -> {
-                if (client.player != null) {
-                    client.player.sendMessage(net.minecraft.text.Text.literal("§d[Test] İstemci paketi aldı ve haritayı açmayı deniyor! (5 tick delay)"), false);
-                }
                 System.out.println("[CourierMod] Received open_taksi_map packet!");
                 taksiMapActive = true;
                 wasInJourneyMap = false;
