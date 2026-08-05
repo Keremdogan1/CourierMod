@@ -146,7 +146,11 @@ public class CourierModJMPlugin implements IClientPlugin {
     }
 
     public static void openFullscreenMap() {
-        if (jmAPI == null) return;
+        if (jmAPI == null) {
+            fallbackMessage();
+            System.err.println("[CourierMod] jmAPI is NULL! JourneyMap did not initialize the plugin!");
+            return;
+        }
         try {
             Class<?> fullscreenClass = Class.forName("journeymap.client.ui.fullscreen.Fullscreen");
             Object fullscreenInstance = fullscreenClass.getDeclaredConstructor().newInstance();
