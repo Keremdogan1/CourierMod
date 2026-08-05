@@ -487,10 +487,7 @@ public class CourierMod implements ModInitializer {
             .then(CommandManager.literal("iptal-cagri").executes(this::cancelCallTaksi))
         );
 
-        // Alias for testing if '/taksi cagir' is blocked by something
-        dispatcher.register(CommandManager.literal("taksicagir")
-            .executes(this::listTaksiHedefleri)
-        );
+
     }
 
     private int helpCommand(CommandContext<ServerCommandSource> context) {
