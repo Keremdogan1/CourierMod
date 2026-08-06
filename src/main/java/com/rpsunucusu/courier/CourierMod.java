@@ -189,7 +189,9 @@ public class CourierMod implements ModInitializer {
         loadData();
         logActivity("Kurye Modu yuklendi. Sunucu baslatiliyor...");
         CommandRegistrationCallback.EVENT.register(this::registerCommands);
-        FabricPlaceholderRegistry.register(this, serverRef);
+        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("placeholder-api")) {
+            FabricPlaceholderRegistry.register(this, serverRef);
+        }
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             serverInstance = server;
