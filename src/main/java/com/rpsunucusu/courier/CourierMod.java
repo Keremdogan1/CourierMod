@@ -1170,6 +1170,7 @@ public class CourierMod implements ModInitializer {
         BlockPos pos = p.getBlockPos();
         data.taksiNoktalari.add(new LocationData(isim, pos.getX(), pos.getY(), pos.getZ(), p.getWorld().getRegistryKey().getValue().toString()));
         saveData();
+        syncTaksiNoktalariToAll();
         p.sendMessage(Text.literal(AP + "\u00a7aTaksi noktas\u0131 eklendi: \u00a7e" + isim));
         return 1;
     }
@@ -1180,6 +1181,7 @@ public class CourierMod implements ModInitializer {
         for (LocationData loc : data.taksiNoktalari) { if (loc.name.equalsIgnoreCase(isim)) found = loc; }
         if (found != null) {
             data.taksiNoktalari.remove(found); saveData();
+            syncTaksiNoktalariToAll();
             context.getSource().sendMessage(Text.literal(AP + "\u00a7aTaksi noktas\u0131 silindi."));
             return 1;
         }
